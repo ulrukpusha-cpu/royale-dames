@@ -115,10 +115,13 @@ const getStyles = (theme: any) => ({
     fontFamily: theme.fontBody,
   },
   header: {
-    padding: '12px 16px',
+    padding: '8px 12px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: '8px',
+    minHeight: '44px',
+    flexShrink: 0,
     background: 'rgba(0,0,0,0.2)',
     backdropFilter: 'blur(5px)',
     borderBottom: theme.panelBorder,
@@ -126,7 +129,7 @@ const getStyles = (theme: any) => ({
   },
   logo: {
     fontFamily: theme.fontMain,
-    fontSize: '20px',
+    fontSize: '16px',
     fontWeight: 900,
     color: theme.gold,
     textShadow: `0 2px 10px ${theme.goldDim}`,
@@ -252,13 +255,20 @@ const INITIAL_BOARD: Board = Array(BOARD_SIZE).fill(null).map((_, r) =>
 );
 
 // --- HELPER COMPONENT FOR BUTTONS ---
-const TactileButton = ({ onClick, style, children, theme }: any) => {
+const TactileButton = ({ onClick, style, children, theme, disabled }: any) => {
   const [isActive, setIsActive] = useState(false);
   const s = getStyles(theme);
 
   return (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      style={{
+        ...s.button,
+        ...style,
+        ...(isActive ? s.buttonActive : {}),
+        ...(disabled ? { opacity: 0.7, cursor: 'not-allowed' } : {})
+      }}
       onMouseDown={() => setIsActive(true)}
       onMouseUp={() => setIsActive(false)}
       onMouseLeave={() => setIsActive(false)}
@@ -267,7 +277,8 @@ const TactileButton = ({ onClick, style, children, theme }: any) => {
       style={{
         ...s.button,
         ...style,
-        ...(isActive ? s.buttonActive : {})
+        ...(isActive ? s.buttonActive : {}),
+        ...(disabled ? { opacity: 0.7, cursor: 'not-allowed' } : {})
       }}
     >
       {children}
@@ -320,9 +331,43 @@ const RuleButton = ({ label, value, isSelected, onClick, theme }: any) => {
 
 // --- COMPONENTS ---
 
-// 1. LOGIN SCREEN
+// 1. LOGIN SCREEN — Connexion Google et Telegram fonctionnelle
 const LoginScreen = ({ onLogin, theme }: any) => {
   const s = getStyles(theme);
+  const [loading, setLoading] = useState<'google' | 'telegram' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleTelegram = () => {
+    setLoading('telegram');
+    setError(null);
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.initDataUnsafe?.user) {
+      const u = tg.initDataUnsafe.user;
+      const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Joueur Telegram';
+      onLogin('telegram', { id: String(u.id), name, username: u.username });
+    } else {
+      setLoading(null);
+      setError('Ouvre l\'app depuis Telegram (@royaledamesbot) pour te connecter avec ton compte.');
+    }
+  };
+
+  const handleGoogle = () => {
+    setLoading('google');
+    setError(null);
+    // Google OAuth : configure VITE_GOOGLE_CLIENT_ID dans .env pour une vraie connexion.
+    const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
+    if (clientId) {
+      const redirect = encodeURIComponent(window.location.origin + window.location.pathname);
+      const scope = encodeURIComponent('openid email profile');
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirect}&response_type=token&scope=${scope}`;
+    } else {
+      setTimeout(() => {
+        setLoading(null);
+        onLogin('google', { id: 'demo', name: 'Joueur Google (démo)' });
+      }, 1000);
+    }
+  };
+
   return (
     <div style={s.main}>
       <div style={{...s.panel, animation: 'fadeIn 0.6s ease-out'}}>
@@ -337,20 +382,24 @@ const LoginScreen = ({ onLogin, theme }: any) => {
         <h1 style={{...s.logo, fontSize: '28px', marginBottom: '6px'}}>ROYAL DAMES</h1>
         <p style={{color: theme.textDim, marginBottom: '32px', fontSize: '12px', letterSpacing: '0.5px'}}>LE CERCLE DES STRATÈGES</p>
         
+        {error && <div style={{marginBottom: '16px', padding: '10px', background: 'rgba(220,53,69,0.2)', borderRadius: '8px', color: '#dc3545', fontSize: '12px'}}>{error}</div>}
+        
         <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
           <TactileButton 
             theme={theme}
-            onClick={() => onLogin('google')}
+            onClick={handleGoogle}
             style={{background: 'linear-gradient(180deg, #dd4b39 0%, #c23321 100%)', boxShadow: '0 4px 0 #901e0f', color: 'white'}}
+            disabled={loading !== null}
           >
-            <Globe size={18} /> Google
+            {loading === 'google' ? 'Connexion...' : <><Globe size={18} /> Google</>}
           </TactileButton>
           <TactileButton 
             theme={theme}
-            onClick={() => onLogin('telegram')}
+            onClick={handleTelegram}
             style={{background: 'linear-gradient(180deg, #29b6f6 0%, #0288d1 100%)', boxShadow: '0 4px 0 #01579b', color: 'white'}}
+            disabled={loading !== null}
           >
-            <MessageSquare size={18} /> Telegram
+            {loading === 'telegram' ? 'Connexion...' : <><MessageSquare size={18} /> Telegram</>}
           </TactileButton>
         </div>
         
@@ -367,10 +416,31 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
   const [currency, setCurrency] = useState<'USD' | 'ETH'>('USD');
   const [betAmount, setBetAmount] = useState(10);
   const [rules, setRules] = useState<'standard' | 'international'>('international'); 
-  const [tab, setTab] = useState<'play' | 'atelier' | 'historique'>('play');
+  const [tab, setTab] = useState<'play' | 'atelier' | 'historique' | 'coffre'>('play');
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [connectedWallets, setConnectedWallets] = useState<{ metamask?: string; ton?: string }>({});
   
-  // New state for confirmation
   const [pendingChange, setPendingChange] = useState<{ type: 'theme' | 'skin', value: any } | null>(null);
+
+  const connectMetaMask = async () => {
+    const eth = (window as any).ethereum;
+    if (!eth) {
+      alert('Installe MetaMask (metamask.io) pour te connecter.');
+      return;
+    }
+    try {
+      const accounts = await eth.request({ method: 'eth_requestAccounts' });
+      setConnectedWallets(prev => ({ ...prev, metamask: accounts[0] }));
+      setShowWalletModal(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const connectTON = () => {
+    alert('Connexion TON Wallet bientôt disponible. Utilise le réseau TON dans ton wallet compatible.');
+    setShowWalletModal(false);
+  };
 
   const s = getStyles(currentTheme);
 
@@ -477,15 +547,21 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
            </button>
            <button 
              onClick={() => setTab('atelier')} 
-             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'atelier' ? currentTheme.gold : 'transparent', color: tab === 'atelier' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s'}}
+             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'atelier' ? currentTheme.gold : 'transparent', color: tab === 'atelier' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s'}}
            >
              ATELIER
            </button>
            <button 
              onClick={() => setTab('historique')} 
-             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'historique' ? currentTheme.gold : 'transparent', color: tab === 'historique' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s'}}
+             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'historique' ? currentTheme.gold : 'transparent', color: tab === 'historique' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s'}}
            >
-             HISTORIQUE
+             HISTO.
+           </button>
+           <button 
+             onClick={() => setTab('coffre')} 
+             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'coffre' ? currentTheme.gold : 'transparent', color: tab === 'coffre' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s'}}
+           >
+             COFFRE
            </button>
         </div>
 
@@ -505,7 +581,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
                   {currency === 'USD' ? `$${wallet.usd.toLocaleString()}` : `${wallet.crypto.toFixed(4)} ETH`}
                 </div>
                 <button 
-                  onClick={() => alert("Interface de connexion Wallet (Metamask/Phantom) en cours de développement.")}
+                  onClick={() => setShowWalletModal(true)}
                   style={{
                     background: 'rgba(255,255,255,0.05)',
                     border: `1px solid ${currentTheme.gold}`,
@@ -522,8 +598,8 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
                     marginBottom: '4px'
                   }}
                 >
-                  <Plus size={14} strokeWidth={3} />
-                  {currency === 'ETH' ? 'CONNECTER' : 'RECHARGER'}
+                  <Wallet size={14} strokeWidth={2.5} />
+                  {connectedWallets.metamask || connectedWallets.ton ? 'Connecté' : (currency === 'ETH' ? 'CONNECTER' : 'WALLET')}
                 </button>
               </div>
             </div>
@@ -773,7 +849,87 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
           </div>
         )}
 
+        {tab === 'coffre' && (
+          <div style={{textAlign: 'left'}}>
+            <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>🔐 Coffre sécurisé</h3>
+            <p style={{color: currentTheme.textDim, fontSize: '12px', marginBottom: '20px'}}>Ajoute de l'argent fiat à ton coffre pour jouer en toute sécurité.</p>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+              <button
+                onClick={() => alert('Orange Money - Intégration en cours. Configure ton partenaire paiement pour activer.')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
+                  background: 'linear-gradient(90deg, #ff6600 0%, #cc5200 100%)',
+                  border: 'none', borderRadius: '12px', color: 'white',
+                  cursor: 'pointer', fontWeight: 'bold', fontSize: '14px',
+                  boxShadow: '0 4px 12px rgba(255,102,0,0.3)'
+                }}
+              >
+                <div style={{width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>📱</div>
+                Orange Money
+              </button>
+              <button
+                onClick={() => alert('Wave - Intégration en cours. Configure ton partenaire paiement pour activer.')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
+                  background: 'linear-gradient(90deg, #00d4aa 0%, #00a884 100%)',
+                  border: 'none', borderRadius: '12px', color: 'white',
+                  cursor: 'pointer', fontWeight: 'bold', fontSize: '14px',
+                  boxShadow: '0 4px 12px rgba(0,212,170,0.3)'
+                }}
+              >
+                <div style={{width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>📱</div>
+                Wave
+              </button>
+            </div>
+            <div style={{marginTop: '20px', padding: '12px', background: 'rgba(197, 160, 89, 0.1)', borderRadius: '10px', fontSize: '11px', color: currentTheme.textDim, fontStyle: 'italic'}}>
+              Ton argent est sécurisé. Les moyens de paiement sont en cours d'intégration.
+            </div>
+          </div>
+        )}
+
       </div>
+
+      {/* WALLET CONNECT MODAL */}
+      {showWalletModal && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)', zIndex: 115,
+          backdropFilter: 'blur(5px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div style={{...s.panel, maxWidth: '360px', border: `1px solid ${currentTheme.gold}`}}>
+            <h3 style={{margin: '0 0 12px 0', fontFamily: currentTheme.fontMain, color: currentTheme.gold, fontSize: '18px'}}>Connecter un wallet</h3>
+            <p style={{color: currentTheme.textDim, marginBottom: '20px', fontSize: '13px'}}>Choisis ton wallet crypto pour jouer.</p>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+              <button
+                onClick={connectMetaMask}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
+                  background: 'linear-gradient(90deg, #f6851b 0%, #e2761b 100%)',
+                  border: 'none', borderRadius: '12px', color: 'white',
+                  cursor: 'pointer', fontWeight: 'bold', fontSize: '14px'
+                }}
+              >
+                <Wallet size={24} />
+                MetaMask
+              </button>
+              <button
+                onClick={connectTON}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
+                  background: 'linear-gradient(90deg, #0098ea 0%, #0077c8 100%)',
+                  border: 'none', borderRadius: '12px', color: 'white',
+                  cursor: 'pointer', fontWeight: 'bold', fontSize: '14px'
+                }}
+              >
+                <Wallet size={24} />
+                TON Wallet
+              </button>
+            </div>
+            <button onClick={() => setShowWalletModal(false)} style={{...s.secondaryButton, marginTop: '16px', width: '100%'}}>Fermer</button>
+          </div>
+        </div>
+      )}
 
       {/* CONFIRMATION DIALOG */}
       {pendingChange && (
@@ -1772,17 +1928,33 @@ const App = () => {
     return room ? room.toUpperCase() : null;
   });
 
-  const handleLogin = (provider: string) => {
-    // Mock login
-    setTimeout(() => {
-      setUser({ name: 'Player One', id: '123', provider });
-      if (pendingRoomCode) {
-        setView('friend_lobby');
-      } else {
-        setView('dashboard');
-      }
-    }, 500);
+  const handleLogin = (provider: string, userData?: { id: string; name: string; username?: string }) => {
+    const u = userData || { id: '123', name: 'Player One' };
+    setUser({ ...u, provider });
+    if (pendingRoomCode) {
+      setView('friend_lobby');
+    } else {
+      setView('dashboard');
+    }
   };
+
+  // Récupérer le retour Google OAuth (hash avec access_token)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash?.includes('access_token')) {
+      const params = new URLSearchParams(hash.slice(1));
+      const token = params.get('access_token');
+      if (token) {
+        fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.json())
+          .then(profile => {
+            handleLogin('google', { id: profile.id, name: profile.name || profile.email });
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          })
+          .catch(() => {});
+      }
+    }
+  }, []);
 
   const handlePlay = (mode: string, bet: number, currency: string, rules: string) => {
     // Deduct bet (mock)
@@ -1850,15 +2022,13 @@ const App = () => {
     <div style={getStyles(currentTheme).container}>
       {view !== 'game' && (
         <header style={getStyles(currentTheme).header}>
-          <div style={getStyles(currentTheme).logo}>GM CHECKERS</div>
-          <div style={{display: 'flex', gap: '16px'}}>
-            {user && (
-              <div style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: '20px', border: `1px solid ${currentTheme.gold}`}}>
-                <Wallet size={16} color={currentTheme.gold} />
-                <span style={{fontSize: '14px', fontWeight: 'bold'}}>${wallet.usd.toFixed(0)}</span>
-              </div>
-            )}
-          </div>
+          <div style={{...getStyles(currentTheme).logo, flexShrink: 1, minWidth: 0, overflow: 'hidden'}}>GM CHECKERS</div>
+          {user && (
+            <div style={{display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '12px', border: `1px solid ${currentTheme.gold}`, flexShrink: 0}}>
+              <Wallet size={14} color={currentTheme.gold} />
+              <span style={{fontSize: '12px', fontWeight: 'bold'}}>${wallet.usd.toFixed(0)}</span>
+            </div>
+          )}
         </header>
       )}
 
