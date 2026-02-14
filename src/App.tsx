@@ -545,34 +545,34 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
         </div>
 
         {/* TABS */}
-        <div style={{display: 'flex', gap: '8px', marginBottom: '20px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '10px'}}>
+        <div style={{display: 'flex', gap: '4px', marginBottom: '20px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '10px', overflowX: 'auto', flexWrap: 'nowrap', minWidth: 0}}>
            <button 
              onClick={() => setTab('play')} 
-             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'play' ? currentTheme.gold : 'transparent', color: tab === 'play' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s'}}
+             style={{flex: '1 1 0', minWidth: '52px', padding: '8px 4px', borderRadius: '8px', border: 'none', background: tab === 'play' ? currentTheme.gold : 'transparent', color: tab === 'play' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s'}}
            >
              JOUER
            </button>
            <button 
              onClick={() => setTab('atelier')} 
-             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'atelier' ? currentTheme.gold : 'transparent', color: tab === 'atelier' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s'}}
+             style={{flex: '1 1 0', minWidth: '52px', padding: '8px 4px', borderRadius: '8px', border: 'none', background: tab === 'atelier' ? currentTheme.gold : 'transparent', color: tab === 'atelier' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s'}}
            >
              ATELIER
            </button>
            <button 
              onClick={() => setTab('historique')} 
-             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'historique' ? currentTheme.gold : 'transparent', color: tab === 'historique' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s'}}
+             style={{flex: '1 1 0', minWidth: '52px', padding: '8px 4px', borderRadius: '8px', border: 'none', background: tab === 'historique' ? currentTheme.gold : 'transparent', color: tab === 'historique' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s'}}
            >
              HISTO.
            </button>
            <button 
              onClick={() => setTab('coffre')} 
-             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'coffre' ? currentTheme.gold : 'transparent', color: tab === 'coffre' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s'}}
+             style={{flex: '1 1 0', minWidth: '52px', padding: '8px 4px', borderRadius: '8px', border: 'none', background: tab === 'coffre' ? currentTheme.gold : 'transparent', color: tab === 'coffre' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s'}}
            >
              COFFRE
            </button>
            <button 
              onClick={() => setTab('amis')} 
-             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'amis' ? currentTheme.gold : 'transparent', color: tab === 'amis' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s'}}
+             style={{flex: '1 1 0', minWidth: '52px', padding: '8px 4px', borderRadius: '8px', border: 'none', background: tab === 'amis' ? currentTheme.gold : 'transparent', color: tab === 'amis' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s'}}
            >
              AMIS
            </button>
@@ -1088,37 +1088,27 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
   );
 };
 
-// 3. GAME LOBBY
-const GameLobby = ({ onMatchFound, onCancel, theme }: any) => {
+// 3. GAME LOBBY - Attente réelle d'un adversaire (pas de démarrage vs IA)
+const GameLobby = ({ onMatchFound, onCancel, theme, isConnected = false, searchForMatch, cancelSearch, betAmount = 0, currency = 'USD' }: any) => {
   const s = getStyles(theme);
-  useEffect(() => {
-    const timer = setTimeout(() => onMatchFound(), 3000);
-    return () => clearTimeout(timer);
-  }, []);
+  const betCurrency = currency === 'ETH' ? 'TON' : undefined;
 
-  const startVsAI = () => {
-    onMatchFound();
-  };
+  useEffect(() => {
+    if (isConnected) searchForMatch?.(betAmount, betCurrency);
+    return () => cancelSearch?.(betAmount, betCurrency);
+  }, [isConnected, betAmount, betCurrency]);
 
   return (
     <div style={s.main}>
       <div style={s.panel}>
         <div style={{margin: '20px auto', width: '50px', height: '50px', border: `3px solid ${theme.gold}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite'}} />
         <h2 style={{fontFamily: theme.fontMain, color: theme.gold, fontSize: '20px'}}>Recherche d'adversaire...</h2>
-        <p style={{color: theme.textDim, fontSize: '12px', marginBottom: '8px'}}>Matchmaking en simulation • Pas de serveur multijoueur actif</p>
-        <p style={{color: theme.textDim, fontSize: '11px', fontStyle: 'italic', marginBottom: '20px'}}>En attendant un adversaire réel, lance une partie vs l'IA !</p>
-        <button
-          onClick={startVsAI}
-          style={{
-            ...s.button,
-            width: '100%',
-            marginBottom: '12px',
-            background: `linear-gradient(90deg, ${theme.gold}, ${theme.goldDim})`,
-            color: '#2a1a08'
-          }}
-        >
-          <Play size={18} style={{marginRight: '8px'}} /> Jouer vs IA maintenant
-        </button>
+        {isConnected ? (
+          <p style={{color: theme.textDim, fontSize: '12px', marginBottom: '20px'}}>En attente d'un adversaire réel. La partie ne démarrera que lorsqu'un autre joueur sera trouvé.</p>
+        ) : (
+          <p style={{color: theme.textDim, fontSize: '12px', marginBottom: '8px'}}>Serveur multijoueur non connecté.</p>
+        )}
+        <p style={{color: theme.textDim, fontSize: '11px', fontStyle: 'italic', marginBottom: '20px'}}>Pour jouer vs l'IA, annule et choisis le mode SOLO.</p>
         <button onClick={onCancel} style={s.secondaryButton}>Annuler</button>
       </div>
       <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
@@ -1126,26 +1116,24 @@ const GameLobby = ({ onMatchFound, onCancel, theme }: any) => {
   );
 };
 
-// 3.5 FRIEND LOBBY (New)
-const FriendLobby = ({ onMatchFound, onCancel, theme, code: initialCode, friends = [] }: any) => {
+// 3.5 FRIEND LOBBY - Salle par code (pas de démarrage vs IA)
+const FriendLobby = ({ onMatchFound, onCancel, theme, code: guestCode, serverCode, createRoom, joinRoom, betAmount = 0, currency = 'USD', friends = [] }: any) => {
   const s = getStyles(theme);
-  const [code] = useState(() =>
-    initialCode && typeof initialCode === 'string'
-      ? initialCode.toUpperCase()
-      : Math.random().toString(36).substring(2, 8).toUpperCase()
-  );
+  const isGuest = !!guestCode;
+  const code = isGuest ? guestCode : serverCode;
   const [copied, setCopied] = useState(false);
-
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://royale-dames.vercel.app';
-  const joinUrl = `${baseUrl}?room=${code}`;
+  const betCurrency = currency === 'ETH' ? 'TON' : undefined;
 
   useEffect(() => {
-    // Simulate friend joining after delay for demo (no backend yet)
-    const timer = setTimeout(() => {
-       onMatchFound();
-    }, 8000); 
-    return () => clearTimeout(timer);
-  }, []);
+    if (isGuest) {
+      joinRoom?.(guestCode);
+    } else {
+      createRoom?.(betAmount, betCurrency);
+    }
+  }, [isGuest, guestCode, betAmount, betCurrency]);
+
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://royale-dames.vercel.app';
+  const joinUrl = code ? `${baseUrl}?room=${code}` : '';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(joinUrl);
@@ -1185,30 +1173,44 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: initialCode, friends
   return (
     <div style={s.main}>
       <div style={s.panel}>
-        <h2 style={{fontFamily: theme.fontMain, color: theme.gold, marginBottom: '6px', fontSize: '20px'}}>SALLE PRIVÉE</h2>
-        <p style={{color: theme.textDim, marginBottom: '24px', fontSize: '13px'}}>Partage ce code avec ton ami pour commencer.</p>
+        <h2 style={{fontFamily: theme.fontMain, color: theme.gold, marginBottom: '6px', fontSize: '20px'}}>
+          {isGuest ? 'REJOINDRE LA SALLE' : 'SALLE PRIVÉE'}
+        </h2>
+        {isGuest ? (
+          <p style={{color: theme.textDim, marginBottom: '24px', fontSize: '13px'}}>Connexion à la salle en cours. La partie démarrera quand l'hôte sera prêt.</p>
+        ) : (
+          <p style={{color: theme.textDim, marginBottom: '24px', fontSize: '13px'}}>Partage ce code avec ton ami pour commencer. La partie ne démarre que lorsque ton ami rejoint.</p>
+        )}
         
-        <div style={{
-           background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '10px', 
-           border: `1px solid ${theme.gold}`, marginBottom: '20px',
-           display: 'flex', flexDirection: 'column', gap: '6px'
-        }}>
-           <div style={{fontSize: '24px', fontWeight: '900', letterSpacing: '4px', color: 'white', fontFamily: 'monospace'}}>
-             {code}
-           </div>
-           <div style={{fontSize: '10px', color: theme.textDim}}>CODE DE LA SALLE</div>
-        </div>
+        {code && (
+          <div style={{
+             background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '10px', 
+             border: `1px solid ${theme.gold}`, marginBottom: '20px',
+             display: 'flex', flexDirection: 'column', gap: '6px'
+          }}>
+             <div style={{fontSize: '24px', fontWeight: '900', letterSpacing: '4px', color: 'white', fontFamily: 'monospace'}}>
+               {code}
+             </div>
+             <div style={{fontSize: '10px', color: theme.textDim}}>CODE DE LA SALLE</div>
+          </div>
+        )}
 
-        <div style={{display: 'flex', gap: '10px', marginBottom: friends.length ? '16px' : '24px'}}>
-           <button onClick={handleCopy} style={{...s.secondaryButton, flex: 1, marginTop: 0, background: copied ? theme.success : 'rgba(0,0,0,0.2)', color: copied ? '#fff' : theme.textDim, border: copied ? '1px solid transparent' : s.secondaryButton.border}}>
-             {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'Copié !' : 'Copier'}
-           </button>
-           <button onClick={handleShare} style={{...s.secondaryButton, flex: 1, marginTop: 0}}>
-             <Share2 size={16} /> Partager
-           </button>
-        </div>
+        {!isGuest && code && (
+          <div style={{display: 'flex', gap: '10px', marginBottom: friends.length ? '16px' : '24px'}}>
+             <button onClick={handleCopy} style={{...s.secondaryButton, flex: 1, marginTop: 0, background: copied ? theme.success : 'rgba(0,0,0,0.2)', color: copied ? '#fff' : theme.textDim, border: copied ? '1px solid transparent' : s.secondaryButton.border}}>
+               {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'Copié !' : 'Copier'}
+             </button>
+             <button onClick={handleShare} style={{...s.secondaryButton, flex: 1, marginTop: 0}}>
+               <Share2 size={16} /> Partager
+             </button>
+          </div>
+        )}
 
-        {friends.length > 0 && (
+        {!code && !isGuest && (
+          <div style={{marginBottom: '20px', color: theme.textDim, fontSize: '13px'}}>Création de la salle...</div>
+        )}
+
+        {friends.length > 0 && !isGuest && (
           <div style={{marginBottom: '20px'}}>
             <div style={{fontSize: '11px', color: theme.textDim, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px'}}>Inviter un ami de ma liste</div>
             <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
@@ -2113,8 +2115,9 @@ const App = () => {
     if (typeof window === 'undefined') return null;
     const params = new URLSearchParams(window.location.search);
     const room = params.get('room');
-    return room ? room.toUpperCase() : null;
+    return room ? room.toUpperCase().trim() : null;
   });
+  const [friendRoomCode, setFriendRoomCode] = useState<string | null>(null);
 
   const FRIENDS_KEY = `royale-dames-friends-${user?.id || 'anon'}`;
   const [friends, setFriends] = useState<{ id: string; username: string; name: string }[]>([]);
@@ -2142,6 +2145,7 @@ const App = () => {
 
   const multiplayer = useMultiplayer({
     user,
+    onRoomCreated: (code) => setFriendRoomCode(code),
     onGameStarted: (data) => {
       setGameConfig({
         mode: 'multi',
@@ -2299,16 +2303,33 @@ const App = () => {
           isConnectedMultiplayer={multiplayer.isConnected}
         />
       )}
-      {view === 'lobby' && <GameLobby onMatchFound={handleMatchFound} onCancel={() => setView('dashboard')} theme={currentTheme} />}
+      {view === 'lobby' && (
+          <GameLobby
+            onMatchFound={handleMatchFound}
+            onCancel={() => setView('dashboard')}
+            theme={currentTheme}
+            isConnected={multiplayer.isConnected}
+            searchForMatch={multiplayer.searchForMatch}
+            cancelSearch={multiplayer.cancelSearch}
+            betAmount={gameConfig.bet}
+            currency={gameConfig.currency}
+          />
+        )}
       {view === 'friend_lobby' && (
         <FriendLobby
           onMatchFound={handleMatchFound}
           onCancel={() => {
             setView('dashboard');
             setPendingRoomCode(null);
+            setFriendRoomCode(null);
           }}
           theme={currentTheme}
           code={pendingRoomCode}
+          serverCode={friendRoomCode}
+          createRoom={multiplayer.createRoom}
+          joinRoom={multiplayer.joinRoom}
+          betAmount={gameConfig.bet}
+          currency={gameConfig.currency}
           friends={friends}
         />
       )}

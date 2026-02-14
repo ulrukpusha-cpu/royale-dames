@@ -35,6 +35,7 @@ export interface MultiplayerMove {
 
 export interface UseMultiplayerOptions {
   user: { id: string; name: string; username?: string } | null;
+  onRoomCreated?: (code: string) => void;
   onGameStarted?: (data: {
     gameId: string;
     players: [MultiplayerPlayer, MultiplayerPlayer];
@@ -56,6 +57,10 @@ export interface UseMultiplayerReturn {
   invitePlayer: (friendId: string, betAmount?: number, betCurrency?: 'TON' | 'STARS') => void;
   acceptInvitation: (invitationId: string, fromUserId: string, betAmount?: number, betCurrency?: 'TON' | 'STARS') => void;
   declineInvitation: (invitationId: string, fromUserId: string) => void;
+  searchForMatch: (betAmount?: number, betCurrency?: 'TON' | 'STARS') => void;
+  cancelSearch: (betAmount?: number, betCurrency?: 'TON' | 'STARS') => void;
+  createRoom: (betAmount?: number, betCurrency?: 'TON' | 'STARS') => void;
+  joinRoom: (code: string) => void;
   makeMove: (move: MultiplayerMove) => void;
   sendChatMessage: (message: string) => void;
   offerDraw: () => void;
@@ -63,7 +68,7 @@ export interface UseMultiplayerReturn {
   resign: () => void;
 }
 
-export function useMultiplayer({ user, onGameStarted, onGameEnded }: UseMultiplayerOptions): UseMultiplayerReturn {
+export function useMultiplayer({ user, onRoomCreated, onGameStarted, onGameEnded }: UseMultiplayerOptions): UseMultiplayerReturn {
   const socketRef = useRef<Socket | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -134,6 +139,10 @@ export function useMultiplayer({ user, onGameStarted, onGameEnded }: UseMultipla
 
     s.on('game:invitation-sent', () => {
       (window as any).Telegram?.WebApp?.showAlert?.('Invitation envoyée !');
+    });
+
+    s.on('game:room-created', (data: { code: string }) => {
+      onRoomCreated?.(data.code);
     });
 
     s.on('game:invitation-declined', (data: { by: string }) => {
@@ -210,6 +219,22 @@ export function useMultiplayer({ user, onGameStarted, onGameEnded }: UseMultipla
     socketRef.current?.emit('game:invite', { friendId, betAmount, betCurrency });
   };
 
+  const searchForMatch = (betAmount?: number, betCurrency?: 'TON' | 'STARS') => {
+    socketRef.current?.emit('game:search', { betAmount, betCurrency: betCurrency || 'USD' });
+  };
+
+  const cancelSearch = (betAmount?: number, betCurrency?: 'TON' | 'STARS') => {
+    socketRef.current?.emit('game:cancel-search', { betAmount, betCurrency: betCurrency || 'USD' });
+  };
+
+  const createRoom = (betAmount?: number, betCurrency?: 'TON' | 'STARS') => {
+    socketRef.current?.emit('game:create-room', { betAmount, betCurrency });
+  };
+
+  const joinRoom = (code: string) => {
+    socketRef.current?.emit('game:join-room', { code: code?.trim().toUpperCase() });
+  };
+
   const acceptInvitation = (invitationId: string, fromUserId: string, betAmount?: number, betCurrency?: 'TON' | 'STARS') => {
     socketRef.current?.emit('game:accept', { invitationId, fromUserId, betAmount, betCurrency });
   };
@@ -268,6 +293,10 @@ export function useMultiplayer({ user, onGameStarted, onGameEnded }: UseMultipla
     invitePlayer,
     acceptInvitation,
     declineInvitation,
+    searchForMatch,
+    cancelSearch,
+    createRoom,
+    joinRoom,
     makeMove,
     sendChatMessage,
     offerDraw,

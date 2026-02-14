@@ -1,3 +1,0 @@
-# Railway / Railpack - forcer npm install au lieu de npm ci
-[phases.install]
-cmds = ["npm install"]
