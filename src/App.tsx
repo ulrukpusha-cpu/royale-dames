@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { useMultiplayer } from './hooks/useMultiplayer';
+import { useMultiplayer } from '@/hooks/useMultiplayer';
 import { 
   Trophy, 
   User, 
@@ -2201,6 +2201,16 @@ const App = () => {
           })
           .catch(() => {});
       }
+    }
+  }, []);
+
+  // Auto-login depuis Telegram Mini App
+  useEffect(() => {
+    const tg = (window as any).Telegram?.WebApp;
+    const u = tg?.initDataUnsafe?.user;
+    if (u && !user) {
+      const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Joueur';
+      handleLogin('telegram', { id: String(u.id), name, username: u.username });
     }
   }, []);
 

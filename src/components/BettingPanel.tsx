@@ -2,7 +2,7 @@
  * Panneau de pari - Royale Dames (styles inline)
  */
 import React, { useState, useEffect } from 'react';
-import { getTonBalance, placeBet, isTonConnected, getWallets, connectTonWallet } from '../services/ton';
+import { getTonBalance, placeBet, isTonConnected, getWallets, connectTonWallet } from '@/services/ton';
 
 interface BettingPanelProps {
   gameId: string;
