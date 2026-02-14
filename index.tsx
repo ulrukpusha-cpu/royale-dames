@@ -2020,18 +2020,6 @@ const App = () => {
 
   return (
     <div style={getStyles(currentTheme).container}>
-      {view !== 'game' && (
-        <header style={getStyles(currentTheme).header}>
-          <div style={{...getStyles(currentTheme).logo, flexShrink: 1, minWidth: 0, overflow: 'hidden'}}>GM CHECKERS</div>
-          {user && (
-            <div style={{display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '12px', border: `1px solid ${currentTheme.gold}`, flexShrink: 0}}>
-              <Wallet size={14} color={currentTheme.gold} />
-              <span style={{fontSize: '12px', fontWeight: 'bold'}}>${wallet.usd.toFixed(0)}</span>
-            </div>
-          )}
-        </header>
-      )}
-
       {view === 'login' && <LoginScreen onLogin={handleLogin} theme={currentTheme} />}
       {view === 'dashboard' && (
         <Dashboard 
