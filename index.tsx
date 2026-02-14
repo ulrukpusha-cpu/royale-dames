@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
+import { useMultiplayer } from './hooks/useMultiplayer';
 import { 
   Trophy, 
   User, 
@@ -412,7 +413,7 @@ const LoginScreen = ({ onLogin, theme }: any) => {
 };
 
 // 2. MAIN MENU / DASHBOARD
-const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin, friends = [], addFriend, removeFriend }: any) => {
+const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin, friends = [], addFriend, removeFriend, onlineFriends = [], invitePlayer, isConnectedMultiplayer = false }: any) => {
   const [currency, setCurrency] = useState<'USD' | 'ETH'>('USD');
   const [betAmount, setBetAmount] = useState(10);
   const [rules, setRules] = useState<'standard' | 'international'>('international'); 
@@ -900,15 +901,33 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
                   }}>
                     <span style={{color: currentTheme.text, fontWeight: '600'}}>@{f.username}</span>
                     <div style={{display: 'flex', gap: '8px'}}>
-                      <button
-                        onClick={() => onPlay('friend', betAmount, currency === 'USD' ? 'USD' : 'ETH', rules)}
-                        style={{
-                          padding: '6px 12px', borderRadius: '8px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
-                          fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
-                        }}
-                      >
-                        <Play size={14} /> Inviter à jouer
-                      </button>
+                      {(() => {
+                        const onlineFriend = onlineFriends?.find((of: any) => 
+                          of.username?.toLowerCase() === f.username?.toLowerCase() || of.id === f.id
+                        );
+                        const isOnline = !!onlineFriend && isConnectedMultiplayer;
+                        return isOnline ? (
+                          <button
+                            onClick={() => invitePlayer?.(onlineFriend.id, betAmount, currency === 'ETH' ? 'TON' : undefined)}
+                            style={{
+                              padding: '6px 12px', borderRadius: '8px', border: 'none', background: currentTheme.success, color: 'white',
+                              fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                            }}
+                          >
+                            <Play size={14} /> En ligne - Inviter
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => onPlay('friend', betAmount, currency === 'USD' ? 'USD' : 'ETH', rules)}
+                            style={{
+                              padding: '6px 12px', borderRadius: '8px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
+                              fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                            }}
+                          >
+                            <Play size={14} /> Inviter (lien)
+                          </button>
+                        );
+                      })()}
                       <button
                         onClick={() => removeFriend?.(f.id)}
                         style={{
@@ -1222,9 +1241,10 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: initialCode, friends
 };
 
 // 4. GAME BOARD (The core)
-const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator = false, theme, skin }: any) => {
-  const [board, setBoard] = useState<Board>(INITIAL_BOARD);
-  const [turn, setTurn] = useState<'red' | 'white'>('red');
+const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator = false, theme, skin, multiplayerBoard, multiplayerTurn, onMultiplayerMove, multiplayerMyColor, multiplayerResign }: any) => {
+  const isMultiplayer = !!(multiplayerBoard && onMultiplayerMove);
+  const [board, setBoard] = useState<Board>(multiplayerBoard || INITIAL_BOARD);
+  const [turn, setTurn] = useState<'red' | 'white'>(multiplayerTurn || 'red');
   const [selected, setSelected] = useState<Position | null>(null);
   
   // validMoves is now a list of Move objects
@@ -1237,6 +1257,14 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
+
+  // Sync multiplayer board/turn from props
+  useEffect(() => {
+    if (multiplayerBoard) setBoard(multiplayerBoard);
+  }, [multiplayerBoard]);
+  useEffect(() => {
+    if (multiplayerTurn !== undefined) setTurn(multiplayerTurn);
+  }, [multiplayerTurn]);
   
   // --- RULES ENGINE (Internal) ---
   
@@ -1601,7 +1629,9 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   const handleSquareClick = (r: number, c: number) => {
     if (isPaused) return; 
     if (isSpectator) return; 
-    if (winner || (mode !== 'local' && turn === 'white')) return; 
+    if (winner) return;
+    if (isMultiplayer && turn !== multiplayerMyColor) return;
+    if (!isMultiplayer && mode !== 'local' && turn === 'white') return; 
 
     const clickedPiece = board[r][c];
 
@@ -1623,7 +1653,13 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
       const move = validMoves.find(m => m.from.r === selected.r && m.from.c === selected.c && m.to.r === r && m.to.c === c);
 
       if (move) {
-        executeMove(move);
+        if (isMultiplayer && onMultiplayerMove) {
+          onMultiplayerMove({ from: move.from, to: move.to, captures: move.captures });
+          setSelected(null);
+          playSound('move');
+        } else {
+          executeMove(move);
+        }
       }
     }
   };
@@ -1682,7 +1718,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   useEffect(() => {
     if (isPaused) return;
 
-    if ((isSpectator && !winner) || (mode === 'solo' && turn === 'white' && !winner) || ((mode === 'multi' || mode === 'friend') && turn === 'white' && !winner)) {
+    if ((isSpectator && !winner) || (mode === 'solo' && turn === 'white' && !winner) || ((mode === 'multi' || mode === 'friend') && !isMultiplayer && turn === 'white' && !winner)) {
        
        if (validMoves.length === 0) return; // Should be game over, handled by other effect
 
@@ -1867,7 +1903,11 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
                  theme={theme}
                  onClick={() => {
                     setShowQuitConfirm(false);
-                    onGameOver(isSpectator ? null : 'white'); 
+                    if (isMultiplayer && multiplayerResign) {
+                      multiplayerResign();
+                    } else {
+                      onGameOver(isSpectator ? null : 'white'); 
+                    }
                  }} 
                  style={{background: 'linear-gradient(180deg, #c0392b 0%, #8e1c14 100%)', boxShadow: '0 4px 0 #58100b', color: 'white', marginTop: 0, flex: 1, padding: '10px'}}
                >
@@ -2100,6 +2140,32 @@ const App = () => {
     setFriends(prev => prev.filter(f => f.id !== id));
   };
 
+  const multiplayer = useMultiplayer({
+    user,
+    onGameStarted: (data) => {
+      setGameConfig({
+        mode: 'multi',
+        bet: data.betAmount || 0,
+        currency: data.betCurrency || 'USD',
+        rules: 'international',
+        isSpectator: false,
+        multiplayerGameId: data.gameId,
+        multiplayerBoard: data.board,
+        multiplayerYourColor: data.yourColor,
+        multiplayerPlayers: data.players
+      });
+      setView('game');
+    },
+    onGameEnded: (data) => {
+      const msg = data.winner
+        ? (data.winner === data.yourColor ? '🎉 Victoire !' : '😞 Défaite')
+        : '🤝 Match nul';
+      if (data.winnings) (window as any).Telegram?.WebApp?.showAlert?.(`${msg}\n\n💰 ${data.winnings.amount} ${data.winnings.currency}`);
+      else (window as any).Telegram?.WebApp?.showAlert?.(msg);
+      setView('dashboard');
+    }
+  });
+
   // Plein écran dans Telegram Web App
   useEffect(() => {
     const tg = (window as any).Telegram?.WebApp;
@@ -2218,6 +2284,9 @@ const App = () => {
           friends={friends}
           addFriend={addFriend}
           removeFriend={removeFriend}
+          onlineFriends={multiplayer.onlineFriends}
+          invitePlayer={multiplayer.invitePlayer}
+          isConnectedMultiplayer={multiplayer.isConnected}
         />
       )}
       {view === 'lobby' && <GameLobby onMatchFound={handleMatchFound} onCancel={() => setView('dashboard')} theme={currentTheme} />}
@@ -2244,6 +2313,11 @@ const App = () => {
           onGameOver={handleGameOver}
           theme={currentTheme}
           skin={currentSkin}
+          multiplayerBoard={multiplayer.currentGame?.board}
+          multiplayerTurn={multiplayer.currentGame?.currentTurn}
+          onMultiplayerMove={multiplayer.makeMove}
+          multiplayerMyColor={multiplayer.currentGame?.yourColor}
+          multiplayerResign={multiplayer.resign}
         />
       )}
     </div>
