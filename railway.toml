@@ -1,6 +1,9 @@
 # Configuration Railway pour le bot Telegram
 # Voir DEPLOY.md pour la procédure complète.
 
+[build]
+builder = "DOCKERFILE"
+
 [deploy]
 startCommand = "npm start"
 restartPolicyType = "ON_FAILURE"
