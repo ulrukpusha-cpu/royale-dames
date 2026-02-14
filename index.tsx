@@ -1928,6 +1928,16 @@ const App = () => {
     return room ? room.toUpperCase() : null;
   });
 
+  // Plein écran dans Telegram Web App
+  useEffect(() => {
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg) {
+      tg.expand();
+      tg.ready();
+      tg.enableClosingConfirmation?.();
+    }
+  }, []);
+
   const handleLogin = (provider: string, userData?: { id: string; name: string; username?: string }) => {
     const u = userData || { id: '123', name: 'Player One' };
     setUser({ ...u, provider });
