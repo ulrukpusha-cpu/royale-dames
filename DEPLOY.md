@@ -141,4 +141,10 @@ Les variables d’environnement peuvent être définies dans le dashboard Railwa
 
 ---
 
+## 7. Serveur WebSocket multijoueur (optionnel)
+
+Pour activer le mode multijoueur en ligne, déploie un **second service Railway** pour le serveur WebSocket. Voir **[DEPLOY-WEBSOCKET.md](./DEPLOY-WEBSOCKET.md)** pour le guide détaillé.
+
+---
+
 En suivant cette procédure, la web app est servie par Vercel et le bot Telegram par Railway, avec les liens d’invitation qui pointent vers ta web app déployée.

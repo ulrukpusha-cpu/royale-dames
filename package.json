@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "start": "node telegram-bot.cjs",
     "bot": "node telegram-bot.cjs",
-    "server": "node server/index.js",
+    "server": "tsx server/index.ts",
     "server:dev": "npx tsx server/index.ts"
   },
   "dependencies": {
@@ -25,12 +25,12 @@
     "react-dom": "^19.2.4",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
+    "tsx": "^4.19.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.14.0",
-    "tsx": "^4.19.0",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
