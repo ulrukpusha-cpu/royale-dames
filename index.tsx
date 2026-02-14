@@ -412,15 +412,21 @@ const LoginScreen = ({ onLogin, theme }: any) => {
 };
 
 // 2. MAIN MENU / DASHBOARD
-const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin }: any) => {
+const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin, friends = [], addFriend, removeFriend }: any) => {
   const [currency, setCurrency] = useState<'USD' | 'ETH'>('USD');
   const [betAmount, setBetAmount] = useState(10);
   const [rules, setRules] = useState<'standard' | 'international'>('international'); 
-  const [tab, setTab] = useState<'play' | 'atelier' | 'historique' | 'coffre'>('play');
+  const [tab, setTab] = useState<'play' | 'atelier' | 'historique' | 'coffre' | 'amis'>('play');
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [connectedWallets, setConnectedWallets] = useState<{ metamask?: string; ton?: string }>({});
+  const [newFriendUsername, setNewFriendUsername] = useState('');
   
   const [pendingChange, setPendingChange] = useState<{ type: 'theme' | 'skin', value: any } | null>(null);
+
+  const handleAddFriend = () => {
+    addFriend?.(newFriendUsername);
+    setNewFriendUsername('');
+  };
 
   const connectMetaMask = async () => {
     const eth = (window as any).ethereum;
@@ -562,6 +568,12 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
              style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'coffre' ? currentTheme.gold : 'transparent', color: tab === 'coffre' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s'}}
            >
              COFFRE
+           </button>
+           <button 
+             onClick={() => setTab('amis')} 
+             style={{flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === 'amis' ? currentTheme.gold : 'transparent', color: tab === 'amis' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s'}}
+           >
+             AMIS
            </button>
         </div>
 
@@ -849,6 +861,71 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
           </div>
         )}
 
+        {tab === 'amis' && (
+          <div style={{textAlign: 'left'}}>
+            <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>👥 Mes amis</h3>
+            <p style={{color: currentTheme.textDim, fontSize: '12px', marginBottom: '16px'}}>Ajoute des amis par leur @username pour les inviter à jouer.</p>
+            <div style={{display: 'flex', gap: '8px', marginBottom: '20px'}}>
+              <input
+                type="text"
+                placeholder="@username"
+                value={newFriendUsername}
+                onChange={e => setNewFriendUsername(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddFriend()}
+                style={{
+                  flex: 1, padding: '10px 12px', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}40`,
+                  background: 'rgba(0,0,0,0.2)', color: currentTheme.text, fontSize: '14px'
+                }}
+              />
+              <button
+                onClick={handleAddFriend}
+                style={{
+                  padding: '10px 16px', borderRadius: '10px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
+                  fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                }}
+              >
+                <UserPlus size={18} /> Ajouter
+              </button>
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+              {friends.length === 0 ? (
+                <div style={{color: currentTheme.textDim, fontSize: '13px', fontStyle: 'italic', padding: '20px', textAlign: 'center'}}>
+                  Aucun ami. Ajoute un @username ci-dessus.
+                </div>
+              ) : (
+                friends.map(f => (
+                  <div key={f.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px',
+                    background: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}30`
+                  }}>
+                    <span style={{color: currentTheme.text, fontWeight: '600'}}>@{f.username}</span>
+                    <div style={{display: 'flex', gap: '8px'}}>
+                      <button
+                        onClick={() => onPlay('friend', betAmount, currency === 'USD' ? 'USD' : 'ETH', rules)}
+                        style={{
+                          padding: '6px 12px', borderRadius: '8px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
+                          fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                        }}
+                      >
+                        <Play size={14} /> Inviter à jouer
+                      </button>
+                      <button
+                        onClick={() => removeFriend?.(f.id)}
+                        style={{
+                          padding: '6px', borderRadius: '8px', border: `1px solid ${currentTheme.textDim}60`, background: 'transparent',
+                          color: currentTheme.textDim, cursor: 'pointer'
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
         {tab === 'coffre' && (
           <div style={{textAlign: 'left'}}>
             <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>🔐 Coffre sécurisé</h3>
@@ -901,6 +978,27 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
             <h3 style={{margin: '0 0 12px 0', fontFamily: currentTheme.fontMain, color: currentTheme.gold, fontSize: '18px'}}>Connecter un wallet</h3>
             <p style={{color: currentTheme.textDim, marginBottom: '20px', fontSize: '13px'}}>Choisis ton wallet crypto pour jouer.</p>
             <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+              {(typeof window !== 'undefined' && (window as any).Telegram?.WebApp) && (
+                <button
+                  onClick={() => {
+                    const tg = (window as any).Telegram?.WebApp;
+                    if (tg?.openLink) tg.openLink('https://t.me/wallet/start');
+                    else if (tg?.openTelegramLink) tg.openTelegramLink('https://t.me/wallet/start');
+                    else window.open('https://t.me/wallet/start', '_blank');
+                    setConnectedWallets(prev => ({ ...prev, ton: 'telegram' }));
+                    setShowWalletModal(false);
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
+                    background: 'linear-gradient(90deg, #229ED9 0%, #0088cc 100%)',
+                    border: 'none', borderRadius: '12px', color: 'white',
+                    cursor: 'pointer', fontWeight: 'bold', fontSize: '14px'
+                  }}
+                >
+                  <MessageSquare size={24} />
+                  Portefeuille Telegram (TON)
+                </button>
+              )}
               <button
                 onClick={connectMetaMask}
                 style={{
@@ -923,7 +1021,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
                 }}
               >
                 <Wallet size={24} />
-                TON Wallet
+                TON Wallet (externe)
               </button>
             </div>
             <button onClick={() => setShowWalletModal(false)} style={{...s.secondaryButton, marginTop: '16px', width: '100%'}}>Fermer</button>
@@ -975,19 +1073,33 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
 const GameLobby = ({ onMatchFound, onCancel, theme }: any) => {
   const s = getStyles(theme);
   useEffect(() => {
-    // Simulate matchmaking
-    const timer = setTimeout(() => {
-      onMatchFound();
-    }, 3000);
+    const timer = setTimeout(() => onMatchFound(), 3000);
     return () => clearTimeout(timer);
   }, []);
+
+  const startVsAI = () => {
+    onMatchFound();
+  };
 
   return (
     <div style={s.main}>
       <div style={s.panel}>
-        <div style={{margin: '30px auto', width: '50px', height: '50px', border: `3px solid ${theme.gold}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite'}} />
+        <div style={{margin: '20px auto', width: '50px', height: '50px', border: `3px solid ${theme.gold}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite'}} />
         <h2 style={{fontFamily: theme.fontMain, color: theme.gold, fontSize: '20px'}}>Recherche d'adversaire...</h2>
-        <p style={{color: theme.textDim, fontSize: '13px'}}>Matchmaking VIP • Paris confirmés</p>
+        <p style={{color: theme.textDim, fontSize: '12px', marginBottom: '8px'}}>Matchmaking en simulation • Pas de serveur multijoueur actif</p>
+        <p style={{color: theme.textDim, fontSize: '11px', fontStyle: 'italic', marginBottom: '20px'}}>En attendant un adversaire réel, lance une partie vs l'IA !</p>
+        <button
+          onClick={startVsAI}
+          style={{
+            ...s.button,
+            width: '100%',
+            marginBottom: '12px',
+            background: `linear-gradient(90deg, ${theme.gold}, ${theme.goldDim})`,
+            color: '#2a1a08'
+          }}
+        >
+          <Play size={18} style={{marginRight: '8px'}} /> Jouer vs IA maintenant
+        </button>
         <button onClick={onCancel} style={s.secondaryButton}>Annuler</button>
       </div>
       <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
@@ -996,7 +1108,7 @@ const GameLobby = ({ onMatchFound, onCancel, theme }: any) => {
 };
 
 // 3.5 FRIEND LOBBY (New)
-const FriendLobby = ({ onMatchFound, onCancel, theme, code: initialCode }: any) => {
+const FriendLobby = ({ onMatchFound, onCancel, theme, code: initialCode, friends = [] }: any) => {
   const s = getStyles(theme);
   const [code] = useState(() =>
     initialCode && typeof initialCode === 'string'
@@ -1005,8 +1117,11 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: initialCode }: any) 
   );
   const [copied, setCopied] = useState(false);
 
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://royale-dames.vercel.app';
+  const joinUrl = `${baseUrl}?room=${code}`;
+
   useEffect(() => {
-    // Simulate friend joining after delay for demo
+    // Simulate friend joining after delay for demo (no backend yet)
     const timer = setTimeout(() => {
        onMatchFound();
     }, 8000); 
@@ -1014,7 +1129,7 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: initialCode }: any) 
   }, []);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`https://royal-dames.game/join/${code}`);
+    navigator.clipboard.writeText(joinUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -1023,15 +1138,28 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: initialCode }: any) 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Royal Dames - Duel',
-          text: `Rejoins-moi pour une partie ! Code : ${code}`,
-          url: `https://royal-dames.game/join/${code}`
+          title: 'Royale Dames - Duel',
+          text: `Rejoins-moi pour une partie ! Code : ${code}\n${joinUrl}`,
+          url: joinUrl
         });
       } catch (err) {
         console.log('Error sharing', err);
       }
     } else {
       handleCopy();
+    }
+  };
+
+  const shareToTelegram = (username?: string) => {
+    const text = encodeURIComponent(`Rejoins-moi pour une partie de dames ! Code : ${code}\n${joinUrl}`);
+    const url = username
+      ? `https://t.me/share/url?url=${encodeURIComponent(joinUrl)}&text=${text}`
+      : `https://t.me/share/url?url=${encodeURIComponent(joinUrl)}&text=${text}`;
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg) {
+      tg.openTelegramLink?.(url);
+    } else {
+      window.open(url, '_blank');
     }
   };
 
@@ -1052,7 +1180,7 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: initialCode }: any) 
            <div style={{fontSize: '10px', color: theme.textDim}}>CODE DE LA SALLE</div>
         </div>
 
-        <div style={{display: 'flex', gap: '10px', marginBottom: '24px'}}>
+        <div style={{display: 'flex', gap: '10px', marginBottom: friends.length ? '16px' : '24px'}}>
            <button onClick={handleCopy} style={{...s.secondaryButton, flex: 1, marginTop: 0, background: copied ? theme.success : 'rgba(0,0,0,0.2)', color: copied ? '#fff' : theme.textDim, border: copied ? '1px solid transparent' : s.secondaryButton.border}}>
              {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'Copié !' : 'Copier'}
            </button>
@@ -1060,6 +1188,26 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: initialCode }: any) 
              <Share2 size={16} /> Partager
            </button>
         </div>
+
+        {friends.length > 0 && (
+          <div style={{marginBottom: '20px'}}>
+            <div style={{fontSize: '11px', color: theme.textDim, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px'}}>Inviter un ami de ma liste</div>
+            <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
+              {friends.map((f: { id: string; username: string }) => (
+                <button
+                  key={f.id}
+                  onClick={() => shareToTelegram(f.username)}
+                  style={{
+                    padding: '8px 12px', borderRadius: '8px', border: `1px solid ${theme.gold}60`, background: 'rgba(0,0,0,0.2)',
+                    color: theme.gold, fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                  }}
+                >
+                  <MessageSquare size={14} /> @{f.username}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: theme.textDim, fontSize: '12px', fontStyle: 'italic'}}>
            <div style={{width: '8px', height: '8px', borderRadius: '50%', background: theme.accent, animation: 'pulse 1.5s infinite'}} />
@@ -1928,6 +2076,30 @@ const App = () => {
     return room ? room.toUpperCase() : null;
   });
 
+  const FRIENDS_KEY = `royale-dames-friends-${user?.id || 'anon'}`;
+  const [friends, setFriends] = useState<{ id: string; username: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const s = localStorage.getItem(`royale-dames-friends-${user.id}`);
+      setFriends(s ? JSON.parse(s) : []);
+    } catch { setFriends([]); }
+  }, [user?.id]);
+  useEffect(() => {
+    if (!user?.id) return;
+    localStorage.setItem(`royale-dames-friends-${user.id}`, JSON.stringify(friends));
+  }, [friends, user?.id]);
+
+  const addFriend = (u: string) => {
+    const un = u.trim().replace(/^@/, '');
+    if (!un || un.length < 3) return;
+    if (friends.some(f => f.username.toLowerCase() === un.toLowerCase())) return;
+    setFriends(prev => [...prev, { id: un, username: un, name: `@${un}` }]);
+  };
+  const removeFriend = (id: string) => {
+    setFriends(prev => prev.filter(f => f.id !== id));
+  };
+
   // Plein écran dans Telegram Web App
   useEffect(() => {
     const tg = (window as any).Telegram?.WebApp;
@@ -2043,6 +2215,9 @@ const App = () => {
           setTheme={setCurrentTheme}
           currentSkin={currentSkin}
           setSkin={setCurrentSkin}
+          friends={friends}
+          addFriend={addFriend}
+          removeFriend={removeFriend}
         />
       )}
       {view === 'lobby' && <GameLobby onMatchFound={handleMatchFound} onCancel={() => setView('dashboard')} theme={currentTheme} />}
@@ -2055,6 +2230,7 @@ const App = () => {
           }}
           theme={currentTheme}
           code={pendingRoomCode}
+          friends={friends}
         />
       )}
       {view === 'game' && (
