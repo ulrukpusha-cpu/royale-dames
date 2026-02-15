@@ -1,4 +1,5 @@
 import { TonConnect, toUserFriendlyAddress } from '@tonconnect/sdk';
+import { beginCell } from '@ton/core';
 
 const MANIFEST_URL =
   typeof window !== 'undefined'
@@ -67,18 +68,36 @@ export async function getTonBalance(): Promise<number> {
   }
 }
 
+/** Adresse du contrat de paris (royale-dames-bet.fc). Remplacer après déploiement. */
+const BET_CONTRACT = import.meta.env.VITE_TON_BET_CONTRACT || 'VOTRE_ADRESSE_CONTRACT';
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+/** Construit le payload pour place_bet (op 1) du contrat FunC. */
+function buildPlaceBetPayload(): string {
+  const cell = beginCell().storeUint(1, 32).endCell();
+  return uint8ArrayToBase64(cell.toBoc());
+}
+
 export async function placeBet(amount: number, gameId: string): Promise<{ success: boolean; txHash?: string }> {
   const c = getConnector();
   if (!c.wallet) return { success: false };
+  if (BET_CONTRACT === 'VOTRE_ADRESSE_CONTRACT') {
+    console.warn('VITE_TON_BET_CONTRACT non configuré - pari simulé');
+    return { success: true, txHash: 'simulated' };
+  }
 
-  const contractAddress = 'VOTRE_ADRESSE_CONTRACT';
   const nanoAmount = Math.floor(amount * 1e9).toString();
-  const payload = btoa(JSON.stringify({ action: 'bet', gameId, timestamp: Date.now() }));
+  const payload = buildPlaceBetPayload();
 
   try {
     const result = await c.sendTransaction({
       validUntil: Math.floor(Date.now() / 1000) + 360,
-      messages: [{ address: contractAddress, amount: nanoAmount, payload }],
+      messages: [{ address: BET_CONTRACT, amount: nanoAmount, payload }],
     });
     return { success: true, txHash: result.boc };
   } catch (error) {

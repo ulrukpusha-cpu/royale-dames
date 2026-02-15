@@ -1,0 +1,103 @@
+;; Royale Dames - Smart Contract Paris (FunC)
+;; Pari 1v1 : place_bet, join_bet, resolve (owner désigne le gagnant)
+;;
+;; Compilation : blueprint build (ou func -o bet.fif -SPA royale-dames-bet.fc)
+;; Déploiement : voir CONTRACTS.md
+
+;; Stdlib: copier depuis https://github.com/ton-blockchain/ton/raw/master/crypto/smartcont/stdlib.fc
+;; Ou utiliser Blueprint / @ton-community/func-js qui fournissent le stdlib
+#include "stdlib.fc";
+
+;; Op codes (choisis arbitrairement)
+(int) op_place_bet() asm "1 PUSHINT";
+(int) op_join_bet() asm "2 PUSHINT";
+(int) op_resolve() asm "3 PUSHINT";
+
+;; Fee 2%
+(int) fee_bps() asm "200 PUSHINT";
+
+;; Extraire l'expéditeur du message (Message structure TON)
+(slice) parse_sender(cell in_msg_full) inline {
+  slice cs = in_msg_full.begin_parse();
+  cs~load_uint(4);   ;; tags
+  if (cs~load_uint(1)) { cs~load_ref(); cs~load_ref(); }
+  cs~load_uint(1);   ;; int_msg_info
+  cs~load_uint(2);   ;; ihr_disabled, bounce
+  return cs~load_msg_addr();
+}
+
+;; Storage layout (cell):
+;; owner:MsgAddress
+;; player1:MsgAddress (0 si vide)
+;; player2:MsgAddress
+;; amount:Coins
+;; status:uint8 (0=vide, 1=waiting player2, 2=matched)
+(int, slice, slice, int, int) load_storage() inline {
+  cell dc = get_data();
+  throw_unless(700, dc.cell_refs_count() == 0 && dc.cell_bits_count() > 0);
+  slice ds = dc.begin_parse();
+  slice owner = ds~load_msg_addr();
+  slice p1 = ds~load_msg_addr();
+  slice p2 = ds~load_msg_addr();
+  int amount = ds~load_coins();
+  int status = ds~load_uint(8);
+  return (owner, p1, p2, amount, status);
+}
+
+() save_storage(slice owner, slice p1, slice p2, int amount, int status) impure inline {
+  set_data(begin_cell()
+    .store_slice(owner)
+    .store_slice(p1)
+    .store_slice(p2)
+    .store_coins(amount)
+    .store_uint(status, 8)
+    .end_cell());
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+  if (in_msg_body.slice_empty?()) { return (); }
+  
+  int op = in_msg_body~load_uint(32);
+  slice sender = parse_sender(in_msg_full);
+  
+  (slice owner, slice p1, slice p2, int amount, int status) = load_storage();
+  
+  if (op == op_place_bet()) {
+    throw_unless(701, status == 0);
+    throw_unless(702, msg_value >= 100000000); ;; min 0.1 TON
+    save_storage(owner, sender, sender, msg_value, 1);
+    return ();
+  }
+  
+  if (op == op_join_bet()) {
+    throw_unless(703, status == 1);
+    throw_unless(704, msg_value == amount);
+    throw_unless(705, ~ equal_slices(sender, p1));
+    save_storage(owner, p1, sender, amount, 2);
+    return ();
+  }
+  
+  if (op == op_resolve()) {
+    throw_unless(706, equal_slices(sender, owner));
+    throw_unless(707, status == 2);
+    slice winner = in_msg_body~load_msg_addr();
+    throw_unless(708, equal_slices(winner, p1) | equal_slices(winner, p2));
+    
+    int total = amount * 2;
+    int fee = total * fee_bps() / 10000;
+    int payout = total - fee;
+    
+    save_storage(owner, owner, owner, 0, 0);
+    
+    var msg = begin_cell()
+      .store_uint(0x18, 6)
+      .store_slice(winner)
+      .store_coins(payout)
+      .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+      .store_uint(0, 2)
+      .store_ref(begin_cell().end_cell())
+      .end_cell();
+    send_raw_message(msg, 64);
+    return ();
+  }
+}

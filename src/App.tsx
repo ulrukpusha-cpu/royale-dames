@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { useMultiplayer } from '@/hooks/useMultiplayer';
-import { 
-  Trophy, 
+import { TonBettingPanel } from '@/components/TonBettingPanel';
+import {
+  Trophy,
   User, 
   Wallet, 
   Settings, 
@@ -419,6 +420,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
   const [rules, setRules] = useState<'standard' | 'international'>('international'); 
   const [tab, setTab] = useState<'play' | 'atelier' | 'historique' | 'coffre' | 'amis'>('play');
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showTonBetting, setShowTonBetting] = useState(false);
   const [connectedWallets, setConnectedWallets] = useState<{ metamask?: string; ton?: string }>({});
   const [newFriendUsername, setNewFriendUsername] = useState('');
   
@@ -444,9 +446,28 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
     }
   };
 
-  const connectTON = () => {
-    alert('Connexion TON Wallet bientôt disponible. Utilise le réseau TON dans ton wallet compatible.');
-    setShowWalletModal(false);
+  const connectTON = async () => {
+    try {
+      const { getWallets, connectTonWallet, setTonCallbacks } = await import('@/services/ton');
+      setTonCallbacks({
+        onConnected: () => {
+          setConnectedWallets(prev => ({ ...prev, ton: 'tonconnect' }));
+          setShowWalletModal(false);
+        },
+      });
+      const list = await getWallets();
+      const w = list.find((x: any) => x.name?.toLowerCase().includes('tonkeeper')) || list[0];
+      if (w?.universalLink && w?.bridgeUrl) {
+        connectTonWallet({ universalLink: w.universalLink, bridgeUrl: w.bridgeUrl });
+      } else if (w?.jsBridgeKey) {
+        connectTonWallet({ jsBridgeKey: w.jsBridgeKey });
+      } else {
+        (window as any).Telegram?.WebApp?.showAlert?.('Aucun wallet TON trouvé. Installe Tonkeeper.');
+      }
+    } catch (e) {
+      console.error(e);
+      (window as any).Telegram?.WebApp?.showAlert?.('Erreur connexion TON');
+    }
   };
 
   const s = getStyles(currentTheme);
@@ -986,7 +1007,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
       </div>
 
       {/* WALLET CONNECT MODAL */}
-      {showWalletModal && (
+      {showWalletModal && !showTonBetting && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.85)', zIndex: 115,
@@ -1043,7 +1064,38 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
                 TON Wallet (externe)
               </button>
             </div>
+            <button onClick={() => setShowTonBetting(true)} style={{
+              marginTop: '12px', width: '100%', padding: '12px',
+              background: 'rgba(0,152,234,0.2)', border: `1px solid #0098ea`,
+              color: '#0098ea', borderRadius: '10px', cursor: 'pointer', fontWeight: 600
+            }}>
+              Paris TON
+            </button>
             <button onClick={() => setShowWalletModal(false)} style={{...s.secondaryButton, marginTop: '16px', width: '100%'}}>Fermer</button>
+          </div>
+        </div>
+      )}
+
+      {/* TON BETTING MODAL */}
+      {showWalletModal && showTonBetting && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)', zIndex: 115,
+          backdropFilter: 'blur(5px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowTonBetting(false)} style={{
+              position: 'absolute', top: '-36px', right: 0,
+              background: 'transparent', border: 'none', color: currentTheme.textDim,
+              cursor: 'pointer', fontSize: '12px'
+            }}>← Retour</button>
+            <TonBettingPanel
+              gameId={`demo-${Date.now()}`}
+              theme={currentTheme}
+              onBetPlaced={() => { setShowTonBetting(false); setShowWalletModal(false); }}
+              onCancel={() => setShowTonBetting(false)}
+            />
           </div>
         </div>
       )}
