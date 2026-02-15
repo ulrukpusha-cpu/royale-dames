@@ -6,6 +6,7 @@ import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
+import { startTelegramBot, broadcastMatchSearch } from './telegramBot';
 
 const app = express();
 const httpServer = createServer(app);
@@ -167,6 +168,9 @@ io.on('connection', (socket: Socket) => {
     }
     if (queue.some(p => p.id === player.id)) return; // déjà en file
     queue.push(player);
+
+    // Alerte tous les utilisateurs du bot : partie en ligne disponible
+    broadcastMatchSearch(data.betAmount ?? 0, data.betCurrency ?? 'USD', player.username);
     if (queue.length >= 2) {
       const p1 = queue.shift()!;
       const p2 = queue.shift()!;
@@ -503,4 +507,5 @@ io.on('connection', (socket: Socket) => {
 
 httpServer.listen(PORT, () => {
   console.log(`🎮 Serveur Royale Dames WebSocket sur le port ${PORT}`);
+  startTelegramBot();
 });
