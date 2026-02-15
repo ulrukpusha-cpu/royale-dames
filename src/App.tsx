@@ -110,7 +110,8 @@ const getStyles = (theme: any) => ({
   container: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: 'var(--tg-viewport-height, 100vh)',
+    minHeight: 'var(--tg-viewport-height, 100vh)',
     width: '100vw',
     backgroundColor: theme.bg,
     backgroundImage: theme.bgGradient,
@@ -975,9 +976,9 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
             <p style={{color: currentTheme.textDim, fontSize: '12px', marginBottom: '16px'}}>Ajoute des amis par leur @username pour les inviter à jouer.</p>
 
             {/* Rejoindre une salle par code */}
-            <div style={{marginBottom: '20px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}30`}}>
+            <div style={{marginBottom: '20px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}30`, minWidth: 0, overflow: 'hidden'}}>
               <div style={{fontSize: '11px', color: currentTheme.textDim, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px'}}>Rejoindre une salle privée</div>
-              <div style={{display: 'flex', gap: '8px'}}>
+              <div style={{display: 'flex', gap: '8px', minWidth: 0, flexWrap: 'wrap'}}>
                 <input
                   type="text"
                   placeholder="Code (ex: 8USIJG)"
@@ -985,7 +986,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
                   onChange={e => setRoomCodeToJoin(e.target.value.toUpperCase().trim())}
                   onKeyDown={e => e.key === 'Enter' && onJoinRoom?.(roomCodeToJoin)}
                   style={{
-                    flex: 1, padding: '10px 12px', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}40`,
+                    flex: '1 1 100px', minWidth: 0, padding: '10px 12px', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}40`,
                     background: 'rgba(0,0,0,0.2)', color: currentTheme.text, fontSize: '14px', fontFamily: 'monospace', letterSpacing: '2px'
                   }}
                 />
@@ -993,12 +994,12 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
                   onClick={() => onJoinRoom?.(roomCodeToJoin)}
                   disabled={!roomCodeToJoin || roomCodeToJoin.length < 4}
                   style={{
-                    padding: '10px 16px', borderRadius: '10px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
+                    flexShrink: 0, padding: '10px 14px', borderRadius: '10px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
                     fontWeight: 'bold', cursor: roomCodeToJoin?.length >= 4 ? 'pointer' : 'not-allowed', opacity: roomCodeToJoin?.length >= 4 ? 1 : 0.6,
-                    display: 'flex', alignItems: 'center', gap: '6px'
+                    display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
                   }}
                 >
-                  <UserPlus size={18} /> Rejoindre
+                  <UserPlus size={18} style={{flexShrink: 0}} /> <span>Rejoindre</span>
                 </button>
               </div>
             </div>

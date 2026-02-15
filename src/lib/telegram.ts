@@ -128,6 +128,20 @@ export const useTelegramWebApp = () => {
     tg.setBackgroundColor('#0D0800');
     tg.enableClosingConfirmation?.();
 
+    // Tablette / Desktop : expand() n'a pas d'effet, on utilise la hauteur viewport pour remplir l'écran
+    const applyViewportHeight = () => {
+      const vh = tg.viewportStableHeight || tg.viewportHeight || window.innerHeight;
+      document.documentElement.style.setProperty('--tg-viewport-height', `${vh}px`);
+      document.documentElement.style.setProperty('--tg-viewport-stable-height', `${tg.viewportStableHeight || vh}px`);
+    };
+    applyViewportHeight();
+    tg.onEvent('viewportChanged', applyViewportHeight);
+
+    // Réessayer expand périodiquement sur tablette (parfois efficace après un délai)
+    const retryExpand = setTimeout(() => {
+      tg.expand();
+    }, 300);
+
     const u = tg.initDataUnsafe?.user;
     if (u) {
       const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Joueur';
@@ -144,6 +158,11 @@ export const useTelegramWebApp = () => {
     tg.BackButton?.onClick?.(() => {
       window.history.back();
     });
+
+    return () => {
+      clearTimeout(retryExpand);
+      tg.offEvent?.('viewportChanged', applyViewportHeight);
+    };
   }, [setUser]);
 
   return window.Telegram?.WebApp;
