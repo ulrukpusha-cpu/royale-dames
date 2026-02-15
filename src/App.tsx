@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { useMultiplayer } from '@/hooks/useMultiplayer';
-import { TonBettingPanel } from '@/components/TonBettingPanel';
+const TonBettingPanel = lazy(() => import('@/components/TonBettingPanel').then(m => ({ default: m.TonBettingPanel })));
 import {
   Trophy,
   User, 
@@ -276,12 +276,6 @@ const TactileButton = ({ onClick, style, children, theme, disabled }: any) => {
       onMouseLeave={() => setIsActive(false)}
       onTouchStart={() => setIsActive(true)}
       onTouchEnd={() => setIsActive(false)}
-      style={{
-        ...s.button,
-        ...style,
-        ...(isActive ? s.buttonActive : {}),
-        ...(disabled ? { opacity: 0.7, cursor: 'not-allowed' } : {})
-      }}
     >
       {children}
     </button>
@@ -1090,12 +1084,14 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
               background: 'transparent', border: 'none', color: currentTheme.textDim,
               cursor: 'pointer', fontSize: '12px'
             }}>← Retour</button>
-            <TonBettingPanel
-              gameId={`demo-${Date.now()}`}
-              theme={currentTheme}
-              onBetPlaced={() => { setShowTonBetting(false); setShowWalletModal(false); }}
-              onCancel={() => setShowTonBetting(false)}
-            />
+            <Suspense fallback={<div style={{ color: currentTheme.textDim, padding: 24 }}>Chargement...</div>}>
+              <TonBettingPanel
+                gameId={`demo-${Date.now()}`}
+                theme={currentTheme}
+                onBetPlaced={() => { setShowTonBetting(false); setShowWalletModal(false); }}
+                onCancel={() => setShowTonBetting(false)}
+              />
+            </Suspense>
           </div>
         </div>
       )}
