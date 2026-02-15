@@ -12,5 +12,5 @@ RUN npm install --omit=dev
 # Copier le reste du projet
 COPY . .
 
-# Démarrer le bot
-CMD ["npm", "start"]
+# Démarrer le serveur WebSocket + Bot Telegram (alertes parties en ligne)
+CMD ["npm", "run", "server"]

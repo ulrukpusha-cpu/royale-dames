@@ -1,10 +1,10 @@
-# Configuration Railway pour le bot Telegram
-# Voir DEPLOY.md pour la procédure complète.
+# Configuration Railway - Serveur WebSocket + Bot Telegram intégré
+# Un seul service : WebSocket + alertes parties en ligne
 
 [build]
 builder = "DOCKERFILE"
 
 [deploy]
-startCommand = "npm start"
+startCommand = "npm run server"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
