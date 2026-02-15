@@ -313,13 +313,22 @@ io.on('connection', (socket: Socket) => {
     playerToRoom.set(opponent.id, gameId);
 
     const myColor = players[0].id === player.id ? 'red' : 'white';
-    const theirColor = players[0].id === opponent.id ? 'red' : 'white';
+    const opponentColor = players[0].id === opponent.id ? 'red' : 'white';
 
-    io.to(gameId).emit('game:started', {
+    io.to(player.socketId).emit('game:started', {
       gameId,
       players: room.players,
       board: room.board,
       yourColor: myColor,
+      betAmount: room.betAmount,
+      betCurrency: room.betCurrency,
+      timer: room.timer
+    });
+    io.to(opponent.socketId).emit('game:started', {
+      gameId,
+      players: room.players,
+      board: room.board,
+      yourColor: opponentColor,
       betAmount: room.betAmount,
       betCurrency: room.betCurrency,
       timer: room.timer
@@ -329,6 +338,56 @@ io.on('connection', (socket: Socket) => {
   socket.on('game:decline', (data: { invitationId: string; fromUserId: string }) => {
     const opponent = connectedPlayers.get(data.fromUserId);
     if (opponent) io.to(opponent.socketId).emit('game:invitation-declined', { by: player.username });
+  });
+
+  // Spectateur : demande les parties en cours où un ami joue
+  socket.on('game:spectatable-request', (data: { friendIds?: string[]; friendUsernames?: string[] }) => {
+    const ids = new Set((data.friendIds || []).map((x: string) => x.toLowerCase()));
+    const usernames = new Set((data.friendUsernames || []).map((x: string) => x.toLowerCase().replace(/^@/, '')));
+    const games: any[] = [];
+    for (const [gameId, room] of gameRooms) {
+      if (room.status !== 'active') continue;
+      const p0 = room.players[0];
+      const p1 = room.players[1];
+      const match0 = ids.has(p0.id.toLowerCase()) || usernames.has((p0.username || '').toLowerCase());
+      const match1 = ids.has(p1.id.toLowerCase()) || usernames.has((p1.username || '').toLowerCase());
+      if (match0 || match1) {
+        games.push({
+          gameId,
+          players: room.players,
+          board: room.board,
+          currentTurn: room.currentTurn,
+          betAmount: room.betAmount,
+          betCurrency: room.betCurrency,
+          startTime: room.startTime,
+        });
+      }
+    }
+    socket.emit('spectatable:games', { games });
+  });
+
+  // Spectateur : rejoindre une partie en cours
+  socket.on('game:spectate', (data: { gameId: string }) => {
+    const room = gameRooms.get(data.gameId);
+    if (!room || room.status !== 'active') {
+      socket.emit('error', { message: 'Partie introuvable ou terminée' });
+      return;
+    }
+    if (room.players[0].id === player.id || room.players[1].id === player.id) {
+      socket.emit('error', { message: 'Tu es déjà dans cette partie' });
+      return;
+    }
+    socket.join(room.id);
+    socket.emit('game:spectator-state', {
+      gameId: room.id,
+      players: room.players,
+      board: room.board,
+      currentTurn: room.currentTurn,
+      yourColor: 'red',
+      betAmount: room.betAmount,
+      betCurrency: room.betCurrency,
+      timer: room.timer,
+    });
   });
 
   socket.on('game:move', (data: { gameId: string; move: any }) => {

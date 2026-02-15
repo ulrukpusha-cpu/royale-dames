@@ -45,7 +45,18 @@ export interface UseMultiplayerOptions {
     betCurrency?: 'TON' | 'STARS';
     timer?: { red: number; white: number };
   }) => void;
+  onSpectatorJoined?: (data: { gameId: string; players: any[]; board: any; currentTurn: string }) => void;
   onGameEnded?: (data: { result: string; winner?: string; winnings?: any; yourColor?: 'red' | 'white' }) => void;
+}
+
+export interface SpectatableGame {
+  gameId: string;
+  players: [MultiplayerPlayer, MultiplayerPlayer];
+  board: any;
+  currentTurn: 'red' | 'white';
+  betAmount?: number;
+  betCurrency?: 'TON' | 'STARS';
+  startTime: number;
 }
 
 export interface UseMultiplayerReturn {
@@ -53,7 +64,10 @@ export interface UseMultiplayerReturn {
   isConnected: boolean;
   onlineFriends: MultiplayerPlayer[];
   currentGame: MultiplayerGameRoom | null;
+  spectatableGames: SpectatableGame[];
   setCurrentGame: (g: MultiplayerGameRoom | null) => void;
+  requestSpectatableGames: (friendIds?: string[], friendUsernames?: string[]) => void;
+  spectateGame: (gameId: string) => void;
   invitePlayer: (friendId: string, betAmount?: number, betCurrency?: 'TON' | 'STARS') => void;
   acceptInvitation: (invitationId: string, fromUserId: string, betAmount?: number, betCurrency?: 'TON' | 'STARS') => void;
   declineInvitation: (invitationId: string, fromUserId: string) => void;
@@ -68,12 +82,13 @@ export interface UseMultiplayerReturn {
   resign: () => void;
 }
 
-export function useMultiplayer({ user, onRoomCreated, onGameStarted, onGameEnded }: UseMultiplayerOptions): UseMultiplayerReturn {
+export function useMultiplayer({ user, onRoomCreated, onGameStarted, onSpectatorJoined, onGameEnded }: UseMultiplayerOptions): UseMultiplayerReturn {
   const socketRef = useRef<Socket | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [onlineFriends, setOnlineFriends] = useState<MultiplayerPlayer[]>([]);
   const [currentGame, setCurrentGame] = useState<MultiplayerGameRoom | null>(null);
+  const [spectatableGames, setSpectatableGames] = useState<SpectatableGame[]>([]);
   const currentGameRef = useRef<MultiplayerGameRoom | null>(null);
   currentGameRef.current = currentGame;
 
@@ -186,6 +201,28 @@ export function useMultiplayer({ user, onRoomCreated, onGameStarted, onGameEnded
       currentGameRef.current = null;
     });
 
+    s.on('spectatable:games', (data: { games: SpectatableGame[] }) => {
+      setSpectatableGames(data.games || []);
+    });
+
+    s.on('game:spectator-state', (data: any) => {
+      const room: MultiplayerGameRoom = {
+        id: data.gameId,
+        players: data.players,
+        board: data.board,
+        currentTurn: data.currentTurn,
+        yourColor: data.yourColor || 'red',
+        betAmount: data.betAmount,
+        betCurrency: data.betCurrency,
+        timer: data.timer,
+        chat: [],
+        moveHistory: [],
+      };
+      setCurrentGame(room);
+      currentGameRef.current = room;
+      onSpectatorJoined?.({ gameId: data.gameId, players: data.players, board: data.board, currentTurn: data.currentTurn });
+    });
+
     s.on('game:draw-offered', (data: { by: string }) => {
       const tg = (window as any).Telegram?.WebApp;
       if (tg?.showPopup) {
@@ -233,6 +270,17 @@ export function useMultiplayer({ user, onRoomCreated, onGameStarted, onGameEnded
 
   const joinRoom = (code: string) => {
     socketRef.current?.emit('game:join-room', { code: code?.trim().toUpperCase() });
+  };
+
+  const requestSpectatableGames = (friendIds?: string[], friendUsernames?: string[]) => {
+    socketRef.current?.emit('game:spectatable-request', {
+      friendIds: friendIds || [],
+      friendUsernames: (friendUsernames || []).map(u => (u || '').replace(/^@/, '')),
+    });
+  };
+
+  const spectateGame = (gameId: string) => {
+    socketRef.current?.emit('game:spectate', { gameId });
   };
 
   const acceptInvitation = (invitationId: string, fromUserId: string, betAmount?: number, betCurrency?: 'TON' | 'STARS') => {
@@ -289,7 +337,10 @@ export function useMultiplayer({ user, onRoomCreated, onGameStarted, onGameEnded
     isConnected,
     onlineFriends,
     currentGame,
+    spectatableGames,
     setCurrentGame,
+    requestSpectatableGames,
+    spectateGame,
     invitePlayer,
     acceptInvitation,
     declineInvitation,

@@ -1,8 +1,14 @@
 /**
  * Fournisseurs racine - Royale Dames
- * Initialise Telegram WebApp (expand, couleurs, userStore)
+ * Initialise Telegram WebApp (expand, couleurs, userStore), TonConnect
  */
 import { useTelegramWebApp } from '@/lib/telegram';
+import { TonConnectUIProvider } from '@tonconnect/ui-react';
+
+const manifestUrl =
+  typeof window !== 'undefined'
+    ? `${window.location.origin}/tonconnect-manifest.json`
+    : 'https://royale-dames.vercel.app/tonconnect-manifest.json';
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -10,5 +16,9 @@ interface AppProvidersProps {
 
 export function AppProviders({ children }: AppProvidersProps) {
   useTelegramWebApp();
-  return <>{children}</>;
+  return (
+    <TonConnectUIProvider manifestUrl={manifestUrl}>
+      {children}
+    </TonConnectUIProvider>
+  );
 }

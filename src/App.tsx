@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { useMultiplayer } from '@/hooks/useMultiplayer';
 const TonBettingPanel = lazy(() => import('@/components/TonBettingPanel').then(m => ({ default: m.TonBettingPanel })));
+import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
 import {
   Trophy,
   User, 
@@ -408,7 +409,9 @@ const LoginScreen = ({ onLogin, theme }: any) => {
 };
 
 // 2. MAIN MENU / DASHBOARD
-const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin, friends = [], addFriend, removeFriend, onlineFriends = [], invitePlayer, isConnectedMultiplayer = false }: any) => {
+const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin, friends = [], addFriend, removeFriend, onlineFriends = [], invitePlayer, isConnectedMultiplayer = false, spectatableGames = [], requestSpectatableGames, spectateGame, onSpectateFriendMatch, onSpectateDemo, onJoinRoom }: any) => {
+  const [tonConnectUI] = useTonConnectUI();
+  const tonAddress = useTonAddress();
   const [currency, setCurrency] = useState<'USD' | 'ETH'>('USD');
   const [betAmount, setBetAmount] = useState(10);
   const [rules, setRules] = useState<'standard' | 'international'>('international'); 
@@ -417,8 +420,17 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
   const [showTonBetting, setShowTonBetting] = useState(false);
   const [connectedWallets, setConnectedWallets] = useState<{ metamask?: string; ton?: string }>({});
   const [newFriendUsername, setNewFriendUsername] = useState('');
+  const [roomCodeToJoin, setRoomCodeToJoin] = useState('');
+  const [showSpectateModal, setShowSpectateModal] = useState(false);
   
   const [pendingChange, setPendingChange] = useState<{ type: 'theme' | 'skin', value: any } | null>(null);
+
+  const handleOpenSpectateModal = () => {
+    setShowSpectateModal(true);
+    const ids = friends.map((f: any) => f.id).filter(Boolean);
+    const usernames = friends.map((f: any) => f.username || f.id).filter(Boolean);
+    requestSpectatableGames?.(ids, usernames);
+  };
 
   const handleAddFriend = () => {
     addFriend?.(newFriendUsername);
@@ -442,27 +454,19 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
 
   const connectTON = async () => {
     try {
-      const { getWallets, connectTonWallet, setTonCallbacks } = await import('@/services/ton');
-      setTonCallbacks({
-        onConnected: () => {
-          setConnectedWallets(prev => ({ ...prev, ton: 'tonconnect' }));
-          setShowWalletModal(false);
-        },
-      });
-      const list = await getWallets();
-      const w = list.find((x: any) => x.name?.toLowerCase().includes('tonkeeper')) || list[0];
-      if (w?.universalLink && w?.bridgeUrl) {
-        connectTonWallet({ universalLink: w.universalLink, bridgeUrl: w.bridgeUrl });
-      } else if (w?.jsBridgeKey) {
-        connectTonWallet({ jsBridgeKey: w.jsBridgeKey });
-      } else {
-        (window as any).Telegram?.WebApp?.showAlert?.('Aucun wallet TON trouvé. Installe Tonkeeper.');
-      }
+      await tonConnectUI?.openModal();
+      setShowWalletModal(false);
     } catch (e) {
       console.error(e);
-      (window as any).Telegram?.WebApp?.showAlert?.('Erreur connexion TON');
+      (window as any).Telegram?.WebApp?.showAlert?.('Erreur ouverture du modal TON');
     }
   };
+
+  useEffect(() => {
+    if (tonAddress) {
+      setConnectedWallets(prev => ({ ...prev, ton: 'tonconnect' }));
+    }
+  }, [tonAddress]);
 
   const s = getStyles(currentTheme);
 
@@ -740,7 +744,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
 
             <TactileButton 
               theme={currentTheme} 
-              onClick={onSpectate} 
+              onClick={handleOpenSpectateModal} 
               style={{
                 width: '100%', 
                 marginTop: '12px',
@@ -753,8 +757,96 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
               }}
             >
               <Tv size={20} />
-              <span>MODE SPECTATEUR (DÉMO)</span>
+              <span>MODE SPECTATEUR</span>
             </TactileButton>
+
+            {/* Modal spectateur : matches amis ou démo */}
+            {showSpectateModal && (
+              <div style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(0,0,0,0.9)', zIndex: 120,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+              }}>
+                <div style={{
+                  background: currentTheme.panel || 'rgba(26,28,36,0.95)',
+                  borderRadius: 16,
+                  padding: 24,
+                  maxWidth: 400,
+                  width: '100%',
+                  border: `1px solid ${currentTheme.gold}`,
+                  maxHeight: '80vh',
+                  overflow: 'auto'
+                }}>
+                  <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, marginBottom: 8, fontSize: 18}}>Assister à un duel</h3>
+                  <p style={{color: currentTheme.textDim, fontSize: 12, marginBottom: 20}}>
+                    Sélectionne une partie où un ami est en train de jouer.
+                  </p>
+                  {spectatableGames.length === 0 ? (
+                    <div style={{marginBottom: 20}}>
+                      <div style={{color: currentTheme.textDim, fontSize: 14, padding: 20, textAlign: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: 10}}>
+                        Aucun match ami en cours
+                      </div>
+                      <p style={{color: currentTheme.textDim, fontSize: 12, marginTop: 12, textAlign: 'center'}}>
+                        Ou regarde une démo IA vs IA
+                      </p>
+                      <button
+                        onClick={() => { setShowSpectateModal(false); onSpectateDemo?.(); }}
+                        style={{
+                          width: '100%', padding: 14, marginTop: 8, borderRadius: 10,
+                          background: currentTheme.gold, color: '#2a1a08', fontWeight: 'bold',
+                          border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                        }}
+                      >
+                        <Tv size={18} /> Voir une démo
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+                      {spectatableGames.map((g: any) => (
+                        <button
+                          key={g.gameId}
+                          onClick={() => { setShowSpectateModal(false); onSpectateFriendMatch?.(g.gameId); }}
+                          style={{
+                            padding: 14, borderRadius: 10, border: `1px solid ${currentTheme.textDim}40`,
+                            background: 'rgba(0,0,0,0.2)', color: currentTheme.text, textAlign: 'left',
+                            cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4
+                          }}
+                        >
+                          <span style={{fontWeight: 'bold', fontSize: 14}}>
+                            @{(g.players?.[0]?.username || 'Joueur1')} vs @{(g.players?.[1]?.username || 'Joueur2')}
+                          </span>
+                          {g.betAmount != null && g.betAmount > 0 && (
+                            <span style={{fontSize: 11, color: currentTheme.textDim}}>
+                              Mise : {g.betAmount} {g.betCurrency || 'USD'}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => { setShowSpectateModal(false); onSpectateDemo?.(); }}
+                        style={{
+                          padding: 10, borderRadius: 8, border: `1px dashed ${currentTheme.textDim}`,
+                          background: 'transparent', color: currentTheme.textDim, fontSize: 12,
+                          cursor: 'pointer', marginTop: 8
+                        }}
+                      >
+                        Ou voir une démo IA
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowSpectateModal(false)}
+                    style={{
+                      width: '100%', padding: 12, marginTop: 16, borderRadius: 10,
+                      background: 'rgba(255,255,255,0.1)', border: `1px solid ${currentTheme.textDim}`, color: currentTheme.text,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
         
@@ -881,6 +973,36 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
           <div style={{textAlign: 'left'}}>
             <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>👥 Mes amis</h3>
             <p style={{color: currentTheme.textDim, fontSize: '12px', marginBottom: '16px'}}>Ajoute des amis par leur @username pour les inviter à jouer.</p>
+
+            {/* Rejoindre une salle par code */}
+            <div style={{marginBottom: '20px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}30`}}>
+              <div style={{fontSize: '11px', color: currentTheme.textDim, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px'}}>Rejoindre une salle privée</div>
+              <div style={{display: 'flex', gap: '8px'}}>
+                <input
+                  type="text"
+                  placeholder="Code (ex: 8USIJG)"
+                  value={roomCodeToJoin}
+                  onChange={e => setRoomCodeToJoin(e.target.value.toUpperCase().trim())}
+                  onKeyDown={e => e.key === 'Enter' && onJoinRoom?.(roomCodeToJoin)}
+                  style={{
+                    flex: 1, padding: '10px 12px', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}40`,
+                    background: 'rgba(0,0,0,0.2)', color: currentTheme.text, fontSize: '14px', fontFamily: 'monospace', letterSpacing: '2px'
+                  }}
+                />
+                <button
+                  onClick={() => onJoinRoom?.(roomCodeToJoin)}
+                  disabled={!roomCodeToJoin || roomCodeToJoin.length < 4}
+                  style={{
+                    padding: '10px 16px', borderRadius: '10px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
+                    fontWeight: 'bold', cursor: roomCodeToJoin?.length >= 4 ? 'pointer' : 'not-allowed', opacity: roomCodeToJoin?.length >= 4 ? 1 : 0.6,
+                    display: 'flex', alignItems: 'center', gap: '6px'
+                  }}
+                >
+                  <UserPlus size={18} /> Rejoindre
+                </button>
+              </div>
+            </div>
+
             <div style={{display: 'flex', gap: '8px', marginBottom: '20px'}}>
               <input
                 type="text"
@@ -2054,7 +2176,12 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         </div>
       )}
 
-      {/* BOARD */}
+      {/* BOARD - Flip 180° for white player so they see their pieces at bottom */}
+      {(() => {
+        const flip = isMultiplayer && multiplayerMyColor === 'white';
+        const rowIndices = flip ? [...Array(BOARD_SIZE)].map((_, i) => BOARD_SIZE - 1 - i) : [...Array(BOARD_SIZE)].map((_, i) => i);
+        const colIndices = flip ? [...Array(BOARD_SIZE)].map((_, i) => BOARD_SIZE - 1 - i) : [...Array(BOARD_SIZE)].map((_, i) => i);
+        return (
       <div style={{
         position: 'relative',
         width: 'min(90vw, 500px)',
@@ -2070,7 +2197,8 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         {/* Board Border Detail */}
         <div style={{position: 'absolute', top: '-6px', left: '-6px', right: '-6px', bottom: '-6px', border: '1px solid rgba(255,255,255,0.1)', pointerEvents: 'none', borderRadius: '4px'}}></div>
 
-        {board.map((row, r) => row.map((piece, c) => {
+        {rowIndices.map(r => colIndices.map(c => {
+          const piece = board[r][c];
           const isDark = (r + c) % 2 === 1;
           const isSelected = selected?.r === r && selected?.c === c;
           
@@ -2136,6 +2264,8 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
           );
         }))}
       </div>
+        );
+      })()}
 
     </div>
   );
@@ -2194,6 +2324,10 @@ const App = () => {
   const multiplayer = useMultiplayer({
     user,
     onRoomCreated: (code) => setFriendRoomCode(code),
+    onSpectatorJoined: () => {
+      setGameConfig({ mode: 'spectator', bet: 0, currency: 'USD', rules: 'international', isSpectator: true });
+      setView('game');
+    },
     onGameStarted: (data) => {
       setGameConfig({
         mode: 'multi',
@@ -2349,6 +2483,23 @@ const App = () => {
           onlineFriends={multiplayer.onlineFriends}
           invitePlayer={multiplayer.invitePlayer}
           isConnectedMultiplayer={multiplayer.isConnected}
+          spectatableGames={multiplayer.spectatableGames}
+          requestSpectatableGames={multiplayer.requestSpectatableGames}
+          spectateGame={multiplayer.spectateGame}
+          onSpectateFriendMatch={(gameId) => {
+            multiplayer.spectateGame(gameId);
+          }}
+          onSpectateDemo={() => {
+            setGameConfig({ mode: 'spectator', bet: 0, currency: 'USD', rules: 'international', isSpectator: true });
+            setView('game');
+          }}
+          onJoinRoom={(code: string) => {
+            const c = (code || '').trim().toUpperCase();
+            if (c.length >= 4) {
+              setPendingRoomCode(c);
+              setView('friend_lobby');
+            }
+          }}
         />
       )}
       {view === 'lobby' && (
