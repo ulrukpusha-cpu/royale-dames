@@ -33,7 +33,12 @@ import {
   Crown,
   Plus,
   History,
-  Minus
+  Minus,
+  Loader2,
+  ArrowUpRight,
+  Gem,
+  Link as LinkIcon,
+  CheckCircle2
 } from 'lucide-react';
 
 // --- THEMES & STYLES CONFIGURATION ---
@@ -95,6 +100,26 @@ const THEMES = {
     buttonShadow: '#0369a1',
     fontMain: "'Cinzel', serif",
     fontBody: "'Inter', sans-serif"
+  },
+  nature: {
+    id: 'nature',
+    name: 'Zen Garden',
+    bg: '#1c2e1c',
+    bgGradient: 'linear-gradient(to bottom, #1a2f1a, #0d1a0d)',
+    panel: 'rgba(20, 40, 20, 0.8)',
+    panelBorder: '1px solid rgba(100, 160, 100, 0.3)',
+    text: '#d4e6d4',
+    textDim: '#8fa88f',
+    gold: '#90be6d',
+    goldDim: '#5a8a3e',
+    accent: '#43aa8b',
+    success: '#4d908e',
+    danger: '#e63946',
+    boardLight: '#e9edc9',
+    boardDark: '#577590',
+    buttonShadow: '#3a6b4f',
+    fontMain: "'Inter', sans-serif",
+    fontBody: "'Inter', sans-serif"
   }
 };
 
@@ -104,6 +129,47 @@ const PIECE_SKINS = {
   marble: { name: 'Marbre', type: 'marble' },
   neon: { name: 'Néon', type: 'glow' }
 };
+
+// --- SOUND SYSTEM ---
+const playSynth = (type: 'move' | 'capture' | 'win' | 'lose' | 'select' | 'promote', themeId: string = 'tabac') => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const tone = (freq: number, wave: OscillatorType, start: number, dur: number, vol = 0.1) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = wave;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(vol, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
+      osc.start(start); osc.stop(start + dur);
+    };
+    const isCyber = themeId === 'cyber';
+    switch (type) {
+      case 'select': tone(isCyber ? 500 : 180, 'sine', now, 0.08, 0.04); break;
+      case 'move': tone(isCyber ? 600 : 200, isCyber ? 'square' : 'sine', now, 0.1, 0.05); break;
+      case 'capture':
+        tone(isCyber ? 800 : 150, 'sawtooth', now, 0.1, 0.1);
+        tone(isCyber ? 400 : 100, 'sawtooth', now + 0.1, 0.2, 0.1); break;
+      case 'promote':
+        tone(440, 'triangle', now, 0.15, 0.08);
+        tone(660, 'triangle', now + 0.15, 0.15, 0.08); break;
+      case 'win':
+        [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => tone(f, isCyber ? 'square' : 'triangle', now + i * 0.15, 0.5, 0.1));
+        tone(1046.50, isCyber ? 'square' : 'triangle', now + 0.6, 1.0, 0.1); break;
+      case 'lose':
+        [440, 392, 349.23, 311.13].forEach((f, i) => tone(f, isCyber ? 'sawtooth' : 'sine', now + i * 0.2, 0.6, 0.1));
+        tone(155.56, isCyber ? 'sawtooth' : 'sine', now + 0.8, 1.0, 0.2); break;
+    }
+  } catch (e) { /* silence */ }
+};
+
+// --- AI DIFFICULTY ---
+type AIDifficulty = 'easy' | 'medium' | 'hard';
 
 // --- STYLES GENERATOR ---
 const getStyles = (theme: any) => ({
@@ -259,9 +325,13 @@ const INITIAL_BOARD: Board = Array(BOARD_SIZE).fill(null).map((_, r) =>
 );
 
 // --- HELPER COMPONENT FOR BUTTONS ---
-const TactileButton = ({ onClick, style, children, theme, disabled }: any) => {
+const TactileButton = ({ onClick, style, children, theme, disabled, variant }: any) => {
   const [isActive, setIsActive] = useState(false);
   const s = getStyles(theme);
+
+  const variantStyle = variant === 'secondary' ? s.secondaryButton
+    : variant === 'danger' ? { background: 'linear-gradient(180deg, #e74c3c 0%, #c0392b 100%)', color: '#fff', border: 'none', borderTop: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 4px 0 #922b21, 0 8px 8px rgba(0,0,0,0.3)' }
+    : {};
 
   return (
     <button
@@ -269,6 +339,7 @@ const TactileButton = ({ onClick, style, children, theme, disabled }: any) => {
       disabled={disabled}
       style={{
         ...s.button,
+        ...variantStyle,
         ...style,
         ...(isActive ? s.buttonActive : {}),
         ...(disabled ? { opacity: 0.7, cursor: 'not-allowed' } : {})
@@ -281,6 +352,43 @@ const TactileButton = ({ onClick, style, children, theme, disabled }: any) => {
     >
       {children}
     </button>
+  );
+};
+
+// CAPTURED PIECES DISPLAY
+const CapturedPieces = ({ count, color, theme }: { count: number; color: string; theme: any }) => {
+  if (count === 0) return null;
+  return (
+    <div style={{ display: 'flex', gap: '2px', alignItems: 'center', marginTop: '2px' }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} style={{
+          width: '12px', height: '12px', borderRadius: '50%',
+          background: color === 'red' ? '#c0392b' : '#ecf0f1',
+          border: `1px solid ${color === 'red' ? '#922b21' : '#bdc3c7'}`,
+          opacity: 0.7
+        }} />
+      ))}
+    </div>
+  );
+};
+
+// PLAYER TIMER
+const PlayerTimer = ({ time, theme, isActive }: { time: number; theme: any; isActive: boolean }) => {
+  const minutes = Math.floor(time / 60);
+  const seconds = time % 60;
+  const isLow = time < 30;
+  return (
+    <div style={{
+      background: isActive ? `linear-gradient(135deg, ${theme.gold}, ${theme.goldDim})` : 'rgba(0,0,0,0.3)',
+      color: isActive ? '#1a1a1a' : theme.text,
+      padding: '6px 12px', borderRadius: '8px',
+      fontFamily: "'Courier New', monospace", fontWeight: 'bold', fontSize: '16px',
+      minWidth: '60px', textAlign: 'center',
+      border: isLow && isActive ? '1px solid #e74c3c' : '1px solid transparent',
+      animation: isLow && isActive ? 'pulse-timer 1s ease-in-out infinite' : 'none'
+    }}>
+      {`${minutes}:${seconds.toString().padStart(2, '0')}`}
+    </div>
   );
 };
 
@@ -410,12 +518,64 @@ const LoginScreen = ({ onLogin, theme }: any) => {
 };
 
 // 2. MAIN MENU / DASHBOARD
+// --- DEPOSIT MODAL (MOBILE MONEY) ---
+const DepositModal = ({ theme, onClose, onSuccess }: any) => {
+  const s = getStyles(theme);
+  const [amount, setAmount] = useState(10);
+  const [provider, setProvider] = useState<string | null>(null);
+  const [phone, setPhone] = useState('');
+  const [step, setStep] = useState(1);
+  const PROVIDERS = [
+    { id: 'om', name: 'Orange Money', color: '#ff7900', textColor: '#fff' },
+    { id: 'mtn', name: 'MTN MoMo', color: '#ffcc00', textColor: '#000' }
+  ];
+  const handleDeposit = () => { setStep(3); setTimeout(() => { onSuccess(amount); }, 2000); };
+  return (
+    <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)', padding: '20px'}}>
+      <div style={{...s.panel, maxWidth: '360px', position: 'relative', animation: 'scaleIn 0.3s'}}>
+        <button onClick={onClose} style={{position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: theme.textDim, cursor: 'pointer'}}><X size={20} /></button>
+        <h2 style={{color: theme.text, fontSize: '18px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}><Smartphone size={20} color={theme.gold} /> Mobile Money</h2>
+        {step === 1 && (
+          <>
+            <div style={{marginBottom: '20px'}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                <TactileButton variant="secondary" theme={theme} onClick={() => setAmount(Math.max(5, amount - 5))} style={{padding: '10px', width: '40px'}}><Minus size={16} /></TactileButton>
+                <div style={{flex: 1, background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '12px', color: theme.gold, fontSize: '20px', fontWeight: 'bold', textAlign: 'center'}}>${amount}</div>
+                <TactileButton variant="secondary" theme={theme} onClick={() => setAmount(amount + 5)} style={{padding: '10px', width: '40px'}}><Plus size={16} /></TactileButton>
+              </div>
+            </div>
+            <div style={{marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
+              {PROVIDERS.map(p => (
+                <div key={p.id} onClick={() => setProvider(p.id)} style={{padding: '12px', borderRadius: '10px', background: provider === p.id ? p.color : 'rgba(255,255,255,0.05)', border: provider === p.id ? '2px solid #fff' : '1px solid rgba(255,255,255,0.1)', color: provider === p.id ? p.textColor : theme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s'}}>{p.name}</div>
+              ))}
+            </div>
+            <TactileButton theme={theme} disabled={!provider} onClick={() => setStep(2)} style={{width: '100%'}}>CONTINUER</TactileButton>
+          </>
+        )}
+        {step === 2 && (
+          <>
+            <input type="tel" placeholder="07 12 34 56 78" value={phone} onChange={(e) => setPhone(e.target.value)} style={{width: '100%', padding: '12px', borderRadius: '10px', background: 'rgba(0,0,0,0.3)', border: `1px solid ${theme.textDim}`, color: theme.text, fontSize: '16px', marginBottom: '20px', boxSizing: 'border-box'}} />
+            <TactileButton theme={theme} disabled={phone.length < 8} onClick={handleDeposit} style={{width: '100%'}}>PAYER ${amount}</TactileButton>
+          </>
+        )}
+        {step === 3 && (
+          <div style={{padding: '20px 0', textAlign: 'center'}}>
+            <Loader2 size={40} color={theme.gold} style={{animation: 'spin 1s linear infinite', marginBottom: '16px'}} />
+            <div style={{color: theme.textDim}}>Traitement en cours...</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin, friends = [], addFriend, removeFriend, onlineFriends = [], invitePlayer, isConnectedMultiplayer = false, spectatableGames = [], requestSpectatableGames, spectateGame, onSpectateFriendMatch, onSpectateDemo, onJoinRoom }: any) => {
   const [tonConnectUI] = useTonConnectUI();
   const tonAddress = useTonAddress();
   const [currency, setCurrency] = useState<'USD' | 'ETH'>('USD');
   const [betAmount, setBetAmount] = useState(10);
   const [rules, setRules] = useState<'standard' | 'international'>('international'); 
+  const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
   const [tab, setTab] = useState<'play' | 'atelier' | 'historique' | 'coffre' | 'amis'>('play');
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showTonBetting, setShowTonBetting] = useState(false);
@@ -423,6 +583,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
   const [newFriendUsername, setNewFriendUsername] = useState('');
   const [roomCodeToJoin, setRoomCodeToJoin] = useState('');
   const [showSpectateModal, setShowSpectateModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
   
   const [pendingChange, setPendingChange] = useState<{ type: 'theme' | 'skin', value: any } | null>(null);
 
@@ -696,9 +857,25 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
                </span>
             </div>
 
+            {/* AI Difficulty Selector */}
+            <div style={{marginBottom: '12px'}}>
+              <div style={{fontSize: '11px', color: currentTheme.textDim, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '1px'}}>Niveau IA</div>
+              <div style={{display: 'flex', gap: '6px'}}>
+                {([['easy', '🌱 Novice'], ['medium', '⚔️ Pro'], ['hard', '👑 Master']] as [AIDifficulty, string][]).map(([key, label]) => (
+                  <div key={key} onClick={() => setAiDifficulty(key)} style={{
+                    flex: 1, padding: '8px 4px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', fontSize: '12px', fontWeight: aiDifficulty === key ? '800' : '500',
+                    background: aiDifficulty === key ? `linear-gradient(135deg, ${currentTheme.gold}, ${currentTheme.goldDim})` : 'rgba(0,0,0,0.2)',
+                    color: aiDifficulty === key ? '#1a1a1a' : currentTheme.textDim,
+                    border: aiDifficulty === key ? 'none' : `1px solid rgba(255,255,255,0.1)`,
+                    transition: 'all 0.2s'
+                  }}>{label}</div>
+                ))}
+              </div>
+            </div>
+
             {/* Action Buttons */}
             <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px'}}>
-              <TactileButton theme={currentTheme} onClick={() => onPlay('solo', betAmount, currency, rules)} style={{flexDirection: 'column', padding: '20px 12px', background: 'linear-gradient(180deg, #5d4037 0%, #3e2723 100%)', boxShadow: '0 4px 0 #2b1d16', color: '#e6d5ac', borderTop: '1px solid rgba(255,255,255,0.1)'}}>
+              <TactileButton theme={currentTheme} onClick={() => onPlay('solo', betAmount, currency, rules, aiDifficulty)} style={{flexDirection: 'column', padding: '20px 12px', background: 'linear-gradient(180deg, #5d4037 0%, #3e2723 100%)', boxShadow: '0 4px 0 #2b1d16', color: '#e6d5ac', borderTop: '1px solid rgba(255,255,255,0.1)'}}>
                 <Monitor size={24} style={{marginBottom: '4px', opacity: 0.8}} />
                 <span>SOLO</span>
               </TactileButton>
@@ -1085,43 +1262,41 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
 
         {tab === 'coffre' && (
           <div style={{textAlign: 'left'}}>
-            <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>🔐 Coffre sécurisé</h3>
-            <p style={{color: currentTheme.textDim, fontSize: '12px', marginBottom: '20px'}}>Ajoute de l'argent fiat à ton coffre pour jouer en toute sécurité.</p>
-            <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-              <button
-                onClick={() => alert('Orange Money - Intégration en cours. Configure ton partenaire paiement pour activer.')}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
-                  background: 'linear-gradient(90deg, #ff6600 0%, #cc5200 100%)',
-                  border: 'none', borderRadius: '12px', color: 'white',
-                  cursor: 'pointer', fontWeight: 'bold', fontSize: '14px',
-                  boxShadow: '0 4px 12px rgba(255,102,0,0.3)'
-                }}
-              >
-                <div style={{width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>📱</div>
-                Orange Money
-              </button>
-              <button
-                onClick={() => alert('Wave - Intégration en cours. Configure ton partenaire paiement pour activer.')}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
-                  background: 'linear-gradient(90deg, #00d4aa 0%, #00a884 100%)',
-                  border: 'none', borderRadius: '12px', color: 'white',
-                  cursor: 'pointer', fontWeight: 'bold', fontSize: '14px',
-                  boxShadow: '0 4px 12px rgba(0,212,170,0.3)'
-                }}
-              >
-                <div style={{width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>📱</div>
-                Wave
-              </button>
+            <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>Coffre sécurisé</h3>
+            <p style={{color: currentTheme.textDim, fontSize: '12px', marginBottom: '20px'}}>Gère ton portefeuille et recharge ton solde.</p>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '20px'}}>
+              <TactileButton theme={currentTheme} onClick={() => setShowDepositModal(true)} style={{flexDirection: 'column', gap: '6px', padding: '14px 4px', fontSize: '10px', height: 'auto', minHeight: '60px', background: `linear-gradient(135deg, ${currentTheme.success || '#27ae60'}, ${(currentTheme.success || '#27ae60')}dd)`, boxShadow: '0 4px 0 rgba(0,0,0,0.2)'}}>
+                <Plus size={18} /> <span>RECHARGER</span>
+              </TactileButton>
+              <TactileButton theme={currentTheme} variant="secondary" style={{flexDirection: 'column', gap: '6px', padding: '14px 4px', fontSize: '10px', height: 'auto', minHeight: '60px'}}>
+                <ArrowUpRight size={18} /> <span>RETRAIT</span>
+              </TactileButton>
+              <TactileButton theme={currentTheme} onClick={() => setShowWalletModal(true)} variant="secondary" style={{flexDirection: 'column', gap: '6px', padding: '14px 4px', fontSize: '10px', height: 'auto', minHeight: '60px'}}>
+                <Wallet size={18} /> <span>WALLET</span>
+              </TactileButton>
             </div>
-            <div style={{marginTop: '20px', padding: '12px', background: 'rgba(197, 160, 89, 0.1)', borderRadius: '10px', fontSize: '11px', color: currentTheme.textDim, fontStyle: 'italic'}}>
-              Ton argent est sécurisé. Les moyens de paiement sont en cours d'intégration.
+            <div style={{padding: '14px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', marginBottom: '12px'}}>
+              <div style={{fontSize: '11px', color: currentTheme.textDim, textTransform: 'uppercase', marginBottom: '4px'}}>Historique rapide</div>
+              <div style={{fontSize: '12px', color: currentTheme.text, opacity: 0.6, fontStyle: 'italic'}}>Aucune transaction récente</div>
+            </div>
+            <div style={{padding: '12px', background: 'rgba(197, 160, 89, 0.1)', borderRadius: '10px', fontSize: '11px', color: currentTheme.textDim, fontStyle: 'italic'}}>
+              Paiements sécurisés via Orange Money et MTN MoMo.
             </div>
           </div>
         )}
 
       </div>
+
+      {/* DEPOSIT MODAL */}
+      {showDepositModal && (
+        <DepositModal
+          theme={currentTheme}
+          onClose={() => setShowDepositModal(false)}
+          onSuccess={(amount: number) => {
+            setShowDepositModal(false);
+          }}
+        />
+      )}
 
       {/* WALLET CONNECT MODAL */}
       {showWalletModal && !showTonBetting && (
@@ -1414,7 +1589,7 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: guestCode, serverCod
 };
 
 // 4. GAME BOARD (The core)
-const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator = false, theme, skin, multiplayerBoard, multiplayerTurn, onMultiplayerMove, multiplayerMyColor, multiplayerResign }: any) => {
+const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator = false, theme, skin, multiplayerBoard, multiplayerTurn, onMultiplayerMove, multiplayerMyColor, multiplayerResign, difficulty = 'medium' as AIDifficulty }: any) => {
   const isMultiplayer = !!(multiplayerBoard && onMultiplayerMove);
   const [board, setBoard] = useState<Board>(multiplayerBoard || INITIAL_BOARD);
   const [turn, setTurn] = useState<'red' | 'white'>(multiplayerTurn || 'red');
@@ -1431,6 +1606,30 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
 
+  // Timer
+  const [redTime, setRedTime] = useState(300);
+  const [whiteTime, setWhiteTime] = useState(300);
+  
+  // 3D tilt
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const boardContainerRef = useRef<HTMLDivElement>(null);
+
+  // Captured pieces
+  const flatBoard = board.reduce((acc: (Piece | null)[], row) => acc.concat(row), []);
+  const redPiecesLeft = flatBoard.filter(p => p?.color === 'red').length;
+  const whitePiecesLeft = flatBoard.filter(p => p?.color === 'white').length;
+  const capturedRed = 20 - redPiecesLeft;
+  const capturedWhite = 20 - whitePiecesLeft;
+  
+  const handleBoardMouseMove = (e: React.MouseEvent) => {
+    if (!boardContainerRef.current) return;
+    const rect = boardContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+    setTilt({ x: -(y / rect.height) * 12, y: (x / rect.width) * 12 });
+  };
+  const handleBoardMouseLeave = () => setTilt({ x: 0, y: 0 });
+
   // Sync multiplayer board/turn from props
   useEffect(() => {
     if (multiplayerBoard) setBoard(multiplayerBoard);
@@ -1438,6 +1637,16 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   useEffect(() => {
     if (multiplayerTurn !== undefined) setTurn(multiplayerTurn);
   }, [multiplayerTurn]);
+
+  // Timer
+  useEffect(() => {
+    if (winner || isPaused) return;
+    const timer = setInterval(() => {
+      if (turn === 'white') setWhiteTime(t => Math.max(0, t - 1));
+      else setRedTime(t => Math.max(0, t - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [turn, winner, isPaused]);
   
   // --- RULES ENGINE (Internal) ---
   
@@ -1720,28 +1929,6 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   const redLost = 20 - redCount; 
   const whiteLost = 20 - whiteCount;
 
-  const CapturedPieces = ({ color, count }: { color: 'red' | 'white', count: number }) => (
-    <div style={{
-      display: 'flex', gap: '3px', flexWrap: 'wrap', maxWidth: '120px', marginTop: '4px',
-      background: 'rgba(0,0,0,0.2)', padding: '4px 6px', borderRadius: '8px', border: `1px solid ${theme.panelBorder}`,
-      minHeight: '22px', alignItems: 'center'
-    }}>
-      {count === 0 && <span style={{fontSize: '9px', color: theme.textDim, fontStyle: 'italic', paddingLeft: '4px'}}>0 prise</span>}
-      {Array.from({length: Math.min(count, 10)}).map((_, i) => (
-         <div key={i} style={{
-           width: '10px', height: '10px', borderRadius: '50%',
-           background: color === 'red' 
-             ? (skin === 'wood' ? 'radial-gradient(circle at 30% 30%, #8b4513, #3e2723)' : '#d63031') 
-             : (skin === 'wood' ? 'radial-gradient(circle at 30% 30%, #deb887, #8b4513)' : '#f5f6fa'),
-           boxShadow: '0 1px 3px rgba(0,0,0,0.6)',
-           border: '1px solid rgba(255,255,255,0.2)',
-           opacity: 0.5, 
-         }} />
-      ))}
-      {count > 10 && <span style={{fontSize: '9px', color: theme.textDim}}>+{count-10}</span>}
-    </div>
-  );
-
   // --- END GAME EFFECTS ---
   const EndGameEffects = ({ type }: { type: 'win' | 'lose' }) => {
     // Win Animation
@@ -1887,23 +2074,58 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
     setTurn(prev => prev === 'red' ? 'white' : 'red');
   };
 
-  // AI & Spectator Logic (Simplified Random Mover for demo)
+  const checkDanger = (b: Board, pos: Position, enemyColor: 'red' | 'white'): boolean => {
+    const diags: [number, number][] = [[-1,-1], [-1,1], [1,-1], [1,1]];
+    for (const [dr, dc] of diags) {
+      const er = pos.r + dr, ec = pos.c + dc;
+      const lr = pos.r - dr, lc = pos.c - dc;
+      if (er >= 0 && er < BOARD_SIZE && ec >= 0 && ec < BOARD_SIZE && lr >= 0 && lr < BOARD_SIZE && lc >= 0 && lc < BOARD_SIZE) {
+        const p = b[er][ec];
+        if (p && p.color === enemyColor && !b[lr][lc]) return true;
+      }
+    }
+    return false;
+  };
+
+  const getAIMove = (moves: Move[], diff: AIDifficulty): Move | null => {
+    if (moves.length === 0) return null;
+    if (diff === 'easy') return moves[Math.floor(Math.random() * moves.length)];
+    if (diff === 'medium') {
+      const centerMoves = moves.filter(m => m.to.c > 2 && m.to.c < 7);
+      if (centerMoves.length > 0) return centerMoves[Math.floor(Math.random() * centerMoves.length)];
+      return moves[Math.floor(Math.random() * moves.length)];
+    }
+    const scoredMoves = moves.map(move => {
+      let score = 0;
+      const piece = board[move.from.r][move.from.c];
+      score += move.captures.length * 10;
+      if (move.to.r === BOARD_SIZE - 1 && piece?.color === 'white' && !piece?.isKing) score += 50;
+      if (move.to.r === 0 && piece?.color === 'red' && !piece?.isKing) score += 50;
+      if (move.from.r === 0 || move.from.r === BOARD_SIZE - 1) score -= 3;
+      if (checkDanger(board, move.to, 'red')) score -= 20;
+      if (move.to.c > 2 && move.to.c < 7) score += 3;
+      return { ...move, score };
+    });
+    scoredMoves.sort((a, b) => (b.score || 0) - (a.score || 0));
+    return scoredMoves[0];
+  };
+
+  // AI & Spectator Logic
   useEffect(() => {
     if (isPaused) return;
 
     if ((isSpectator && !winner) || (mode === 'solo' && turn === 'white' && !winner) || ((mode === 'multi' || mode === 'friend') && !isMultiplayer && turn === 'white' && !winner)) {
        
-       if (validMoves.length === 0) return; // Should be game over, handled by other effect
+       if (validMoves.length === 0) return;
 
        setAiThinking(true);
-       const delay = 800;
+       const thinkTime = difficulty === 'easy' ? 600 : (difficulty === 'hard' ? 1500 : 900);
        
        const timer = setTimeout(() => {
-          // AI Logic: Pick random valid move (Valid moves are already filtered by Max Capture rule)
-          const move = validMoves[Math.floor(Math.random() * validMoves.length)];
+          const move = getAIMove(validMoves, difficulty);
           if (move) executeMove(move);
           setAiThinking(false);
-       }, delay);
+       }, thinkTime);
 
        return () => clearTimeout(timer);
     }
@@ -1919,9 +2141,10 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
 
 
   // Determine Opponent Name
+  const aiName = difficulty === 'easy' ? 'Bot Novice' : (difficulty === 'hard' ? 'GrandMaster Bot' : 'Bot Pro');
   const opponentName = isSpectator 
     ? "Match en direct" 
-    : (mode === 'solo' ? "GrandMaster Bot" : (mode === 'friend' ? "Ami Invité" : (mode === 'local' ? "Joueur 2" : "Adversaire en ligne")));
+    : (mode === 'solo' ? aiName : (mode === 'friend' ? "Ami Invité" : (mode === 'local' ? "Joueur 2" : "Adversaire en ligne")));
 
   return (
     <div style={s.main}>
@@ -1967,7 +2190,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
           {/* PLAYER CAPTURED PIECES (Pieces I captured from white) */}
           <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px'}}>
              <span style={{fontSize: '9px', color: theme.textDim, textTransform: 'uppercase'}}>Capturés:</span>
-             <CapturedPieces color="white" count={whiteLost} />
+             <CapturedPieces color="white" count={whiteLost} theme={theme} />
           </div>
         </div>
         <div style={{textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end'}}>
@@ -2017,34 +2240,24 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         </div>
       )}
 
-      {/* OPPONENT INFO - TOP OF BOARD */}
+      {/* TOP PLAYER (Opponent) */}
       <div style={{
-        width: 'min(90vw, 500px)', 
-        display: 'flex', 
-        justifyContent: 'flex-start',
-        alignItems: 'center', 
-        gap: '10px', 
-        marginBottom: '10px'
+        width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px', 
+        marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        border: turn === 'white' ? `1px solid ${theme.gold}` : '1px solid transparent',
+        opacity: turn === 'white' ? 1 : 0.6, transition: 'all 0.3s'
       }}>
-         <div style={{
-            width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(0,0,0,0.3)',
-            border: turn === 'white' ? `2px solid ${theme.gold}` : '2px solid transparent', // Highlight when opponent (white) turn
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'border 0.3s'
-         }}>
-            {isSpectator ? <Tv size={18} color={theme.textDim} /> : (mode === 'solo' ? <Monitor size={18} color={theme.textDim} /> : <User size={18} color={theme.textDim} />)}
-         </div>
-         <div>
-            <div style={{fontWeight: 'bold', fontSize: '14px', color: theme.text}}>{opponentName}</div>
-            <div style={{fontSize: '11px', color: theme.gold, opacity: (aiThinking || (isSpectator && !winner)) ? 1 : 0, transition: 'opacity 0.3s'}}>
-               {(aiThinking || isSpectator) ? 'Réfléchit...' : ' '}
-            </div>
-            {/* OPPONENT CAPTURED PIECES (Pieces they captured from red) */}
-            <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px'}}>
-               <span style={{fontSize: '9px', color: theme.textDim, textTransform: 'uppercase'}}>Capturés:</span>
-               <CapturedPieces color="red" count={redLost} />
-            </div>
-         </div>
+        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+          <div style={{width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid #ecf0f1`}}>
+            {isSpectator ? <Tv size={16} color={theme.textDim} /> : (mode === 'solo' ? <Monitor size={16} color={theme.textDim} /> : <User size={16} color={theme.textDim} />)}
+          </div>
+          <div>
+            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text}}>{opponentName}</div>
+            {(aiThinking || (isSpectator && !winner)) && <div style={{fontSize: '10px', color: theme.gold}}>Réfléchit...</div>}
+            <CapturedPieces count={redLost} color="red" theme={theme} />
+          </div>
+        </div>
+        <PlayerTimer time={whiteTime} theme={theme} isActive={turn === 'white'} />
       </div>
 
       {/* EXIT/QUIT CONFIRMATION MODAL */}
@@ -2183,17 +2396,26 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         const rowIndices = flip ? [...Array(BOARD_SIZE)].map((_, i) => BOARD_SIZE - 1 - i) : [...Array(BOARD_SIZE)].map((_, i) => i);
         const colIndices = flip ? [...Array(BOARD_SIZE)].map((_, i) => BOARD_SIZE - 1 - i) : [...Array(BOARD_SIZE)].map((_, i) => i);
         return (
+      <div 
+        ref={boardContainerRef}
+        onMouseMove={handleBoardMouseMove}
+        onMouseLeave={handleBoardMouseLeave}
+        style={{ perspective: '800px', transformStyle: 'preserve-3d' }}
+      >
       <div style={{
         position: 'relative',
         width: 'min(90vw, 500px)',
         height: 'min(90vw, 500px)',
-        border: `8px solid #2d1b12`, // Reduced border size for more space
+        border: `8px solid #2d1b12`,
         borderRadius: '6px',
         boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
         display: 'grid',
         gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)`,
         gridTemplateRows: `repeat(${BOARD_SIZE}, 1fr)`,
-        background: theme.boardLight
+        background: theme.boardLight,
+        transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+        transition: 'transform 0.15s ease-out',
+        transformStyle: 'preserve-3d'
       }}>
         {/* Board Border Detail */}
         <div style={{position: 'absolute', top: '-6px', left: '-6px', right: '-6px', bottom: '-6px', border: '1px solid rgba(255,255,255,0.1)', pointerEvents: 'none', borderRadius: '4px'}}></div>
@@ -2265,8 +2487,28 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
           );
         }))}
       </div>
+      </div>
         );
       })()}
+
+      {/* BOTTOM PLAYER (You) */}
+      <div style={{
+        width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px', 
+        marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        border: turn === 'red' ? `1px solid ${theme.gold}` : '1px solid transparent',
+        opacity: turn === 'red' ? 1 : 0.6, transition: 'all 0.3s'
+      }}>
+        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+          <div style={{width: '32px', height: '32px', borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #c0392b'}}>
+            <User size={16} color="#000" />
+          </div>
+          <div>
+            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text}}>{isSpectator ? 'SPECTATEUR' : user.name}</div>
+            <CapturedPieces count={whiteLost} color="white" theme={theme} />
+          </div>
+        </div>
+        <PlayerTimer time={redTime} theme={theme} isActive={turn === 'red'} />
+      </div>
 
     </div>
   );
@@ -2401,11 +2643,10 @@ const App = () => {
     }
   }, []);
 
-  const handlePlay = (mode: string, bet: number, currency: string, rules: string) => {
-    // Deduct bet (mock)
+  const handlePlay = (mode: string, bet: number, currency: string, rules: string, difficulty: AIDifficulty = 'medium') => {
     if (currency === 'USD' && wallet.usd < bet) return alert("Fonds insuffisants");
     
-    setGameConfig({ mode, bet, currency, rules, isSpectator: false });
+    setGameConfig({ mode, bet, currency, rules, difficulty, isSpectator: false });
     
     if (mode === 'multi') {
       setView('lobby');
@@ -2540,6 +2781,7 @@ const App = () => {
           currency={gameConfig.currency} 
           rules={gameConfig.rules} 
           isSpectator={gameConfig.isSpectator} 
+          difficulty={gameConfig.difficulty || 'medium'}
           user={user} 
           onGameOver={handleGameOver}
           theme={currentTheme}
