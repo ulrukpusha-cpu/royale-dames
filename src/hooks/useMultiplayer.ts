@@ -323,8 +323,8 @@ export function useMultiplayer({ user, onRoomCreated, onGameStarted, onSpectator
           { id: 'no', type: 'cancel', text: 'Non' }
         ]
       }, (buttonId: string) => {
-        if (buttonId === 'yes' && currentGame) {
-          socketRef.current?.emit('game:resign', { gameId: currentGame.id });
+        if (buttonId === 'yes' && currentGameRef.current) {
+          socketRef.current?.emit('game:resign', { gameId: currentGameRef.current.id });
         }
       });
     } else {

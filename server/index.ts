@@ -5,8 +5,9 @@
 import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
+import { createHmac } from 'crypto';
 import { Server, Socket } from 'socket.io';
-import { startTelegramBot, broadcastMatchSearch } from './telegramBot';
+import { startTelegramBot, broadcastMatchSearch, registerRoomCode } from './telegramBot';
 
 const app = express();
 const httpServer = createServer(app);
@@ -74,12 +75,26 @@ io.use((socket, next) => {
 
 function verifyTelegramInitData(initData: string): { id: string; telegramId?: number; username: string } {
   if (initData.startsWith('demo_')) {
+    if (process.env.NODE_ENV === 'production') throw new Error('Demo auth disabled in production');
     const id = initData.replace('demo_', '');
     return { id: initData, username: id || 'Joueur' };
   }
   const params = new URLSearchParams(initData);
   const userStr = params.get('user');
   if (!userStr) throw new Error('No user');
+
+  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  if (BOT_TOKEN) {
+    const hash = params.get('hash');
+    if (!hash) throw new Error('No hash');
+    params.delete('hash');
+    const entries = Array.from(params.entries()).sort(([a], [b]) => a.localeCompare(b));
+    const dataCheckString = entries.map(([k, v]) => `${k}=${v}`).join('\n');
+    const secretKey = createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+    const computedHash = createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+    if (computedHash !== hash) throw new Error('Invalid hash');
+  }
+
   const user = JSON.parse(userStr);
   return {
     id: `tg_${user.id}`,
@@ -103,13 +118,22 @@ function initBoard() {
 
 function validateMove(board: any, move: any, player: 'red' | 'white'): boolean {
   const { from, to, captures } = move;
-  if (!from || !to || !board[from.r] || !board[to.r]) return false;
+  if (!from || !to || from.r == null || to.r == null) return false;
+  if (from.r < 0 || from.r > 9 || from.c < 0 || from.c > 9) return false;
+  if (to.r < 0 || to.r > 9 || to.c < 0 || to.c > 9) return false;
+  if (!board[from.r] || !board[to.r]) return false;
   const piece = board[from.r][from.c];
   if (!piece || piece.color !== player) return false;
-  const target = board[to.r][to.c];
-  if (target) return false;
+  if (board[to.r][to.c]) return false;
   if ((from.r + from.c) % 2 !== 1 || (to.r + to.c) % 2 !== 1) return false;
-  return true;
+  const dr = Math.abs(to.r - from.r);
+  const dc = Math.abs(to.c - from.c);
+  if (dr !== dc) return false;
+  if (!piece.isKing && dr > 2) return false;
+  if (dr === 1 && (!captures || captures.length === 0)) return true;
+  if (dr === 2 && captures && captures.length >= 1) return true;
+  if (piece.isKing) return true;
+  return false;
 }
 
 function applyMove(board: any, move: any): any {
@@ -157,6 +181,7 @@ io.on('connection', (socket: Socket) => {
   connectedPlayers.set(user.id, player);
 
   socket.emit('friends:online', Array.from(connectedPlayers.values()).filter(p => p.id !== user.id));
+  socket.broadcast.emit('friend:status-changed', { userId: user.id, isOnline: true });
 
   // Matchmaking : recherche d'adversaire aléatoire
   socket.on('game:search', (data: { betAmount?: number; betCurrency?: 'TON' | 'STARS' }) => {
@@ -166,11 +191,9 @@ io.on('connection', (socket: Socket) => {
       queue = [];
       matchmakingQueue.set(betKey, queue);
     }
-    if (queue.some(p => p.id === player.id)) return; // déjà en file
+    if (queue.some(p => p.id === player.id)) return;
     queue.push(player);
 
-    // Alerte tous les utilisateurs du bot : partie en ligne disponible
-    broadcastMatchSearch(data.betAmount ?? 0, data.betCurrency ?? 'USD', player.username);
     if (queue.length >= 2) {
       const p1 = queue.shift()!;
       const p2 = queue.shift()!;
@@ -202,6 +225,8 @@ io.on('connection', (socket: Socket) => {
       const myColor2 = players[0].id === p2.id ? 'red' : 'white';
       io.to(p1.socketId).emit('game:started', { gameId, players: room.players, board: room.board, yourColor: myColor1, betAmount: room.betAmount, betCurrency: room.betCurrency, timer: room.timer });
       io.to(p2.socketId).emit('game:started', { gameId, players: room.players, board: room.board, yourColor: myColor2, betAmount: room.betAmount, betCurrency: room.betCurrency, timer: room.timer });
+    } else {
+      broadcastMatchSearch(data.betAmount ?? 0, data.betCurrency ?? 'USD', player.username);
     }
   });
 
@@ -400,6 +425,10 @@ io.on('connection', (socket: Socket) => {
       socket.emit('error', { message: 'Partie introuvable' });
       return;
     }
+    if (!room.players.some(p => p.id === user.id)) {
+      socket.emit('error', { message: 'Vous n\'êtes pas un joueur de cette partie' });
+      return;
+    }
     const isRed = room.players[0].id === user.id;
     const playerColor: 'red' | 'white' = isRed ? 'red' : 'white';
     if (room.currentTurn !== playerColor) {
@@ -419,9 +448,6 @@ io.on('connection', (socket: Socket) => {
     const result = checkGameEnd(room.board);
     if (result) {
       room.status = 'finished';
-      gameRooms.delete(room.id);
-      playerToRoom.delete(room.players[0].id);
-      playerToRoom.delete(room.players[1].id);
       io.to(room.id).emit('game:ended', {
         result: result.result,
         winner: result.winner,
@@ -429,6 +455,10 @@ io.on('connection', (socket: Socket) => {
         moveHistory: room.moveHistory,
         winnings: room.betAmount && result.winner ? { amount: room.betAmount * 1.9, currency: room.betCurrency } : null
       });
+      io.in(room.id).socketsLeave(room.id);
+      gameRooms.delete(room.id);
+      playerToRoom.delete(room.players[0].id);
+      playerToRoom.delete(room.players[1].id);
     } else {
       io.to(data.gameId).emit('game:move-made', {
         move: data.move,
@@ -441,36 +471,41 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('game:offer-draw', (data: { gameId: string }) => {
     const room = gameRooms.get(data.gameId);
-    if (!room) return;
+    if (!room || !room.players.some(p => p.id === user.id)) return;
     const opp = room.players.find(p => p.id !== user.id);
-    if (opp) io.to(connectedPlayers.get(opp.id)?.socketId!).emit('game:draw-offered', { by: player.username });
+    const oppSocket = opp ? connectedPlayers.get(opp.id)?.socketId : null;
+    if (oppSocket) io.to(oppSocket).emit('game:draw-offered', { by: player.username });
   });
 
   socket.on('game:accept-draw', (data: { gameId: string }) => {
     const room = gameRooms.get(data.gameId);
-    if (!room) return;
+    if (!room || !room.players.some(p => p.id === user.id)) return;
     room.status = 'finished';
+    io.to(room.id).emit('game:ended', { result: 'draw', finalBoard: room.board, moveHistory: room.moveHistory });
+    io.in(room.id).socketsLeave(room.id);
     gameRooms.delete(room.id);
     playerToRoom.delete(room.players[0].id);
     playerToRoom.delete(room.players[1].id);
-    io.to(room.id).emit('game:ended', { result: 'draw', finalBoard: room.board, moveHistory: room.moveHistory });
   });
 
   socket.on('game:resign', (data: { gameId: string }) => {
     const room = gameRooms.get(data.gameId);
-    if (!room) return;
+    if (!room || !room.players.some(p => p.id === user.id)) return;
     const winner = room.players[0].id === user.id ? 'white' : 'red';
     room.status = 'finished';
+    io.to(room.id).emit('game:ended', { result: 'resignation', winner, finalBoard: room.board, moveHistory: room.moveHistory });
+    io.in(room.id).socketsLeave(room.id);
     gameRooms.delete(room.id);
     playerToRoom.delete(room.players[0].id);
     playerToRoom.delete(room.players[1].id);
-    io.to(room.id).emit('game:ended', { result: 'resignation', winner, finalBoard: room.board, moveHistory: room.moveHistory });
   });
 
   socket.on('chat:message', (data: { gameId: string; message: string }) => {
     const room = gameRooms.get(data.gameId);
     if (!room) return;
-    const msg = { userId: user.id, username: player.username, message: data.message, timestamp: Date.now() };
+    const sanitized = String(data.message || '').slice(0, 500).replace(/[<>]/g, '');
+    if (!sanitized.trim()) return;
+    const msg = { userId: user.id, username: player.username, message: sanitized, timestamp: Date.now() };
     room.chat.push(msg);
     io.to(data.gameId).emit('chat:new-message', msg);
   });
@@ -481,12 +516,11 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('disconnect', () => {
     connectedPlayers.delete(user.id);
-    // Retirer de la file de matchmaking
+    io.emit('friend:status-changed', { userId: user.id, isOnline: false });
     for (const [k, q] of matchmakingQueue) {
       const idx = q.findIndex(p => p.id === user.id);
       if (idx >= 0) { q.splice(idx, 1); if (q.length === 0) matchmakingQueue.delete(k); break; }
     }
-    // Supprimer les salles d'attente dont l'hôte part
     for (const [code, wr] of waitingRoomsByCode) {
       if (wr.host.id === user.id) { waitingRoomsByCode.delete(code); break; }
     }
@@ -496,10 +530,11 @@ io.on('connection', (socket: Socket) => {
       if (room) {
         const winner = room.players[0].id === user.id ? 'white' : 'red';
         room.status = 'finished';
+        io.to(gameId).emit('game:ended', { result: 'disconnect', winner, finalBoard: room.board });
+        io.in(gameId).socketsLeave(gameId);
         gameRooms.delete(gameId);
         playerToRoom.delete(room.players[0].id);
         playerToRoom.delete(room.players[1].id);
-        io.to(gameId).emit('game:ended', { result: 'disconnect', winner, finalBoard: room.board });
       }
     }
   });
@@ -508,4 +543,8 @@ io.on('connection', (socket: Socket) => {
 httpServer.listen(PORT, () => {
   console.log(`🎮 Serveur Royale Dames WebSocket sur le port ${PORT}`);
   startTelegramBot();
+  registerRoomCode((code: string) => {
+    const wr: WaitingRoom = { code, host: { id: `bot_${code}`, username: 'Bot Invite', socketId: '', rating: 1200 }, betAmount: 0 };
+    waitingRoomsByCode.set(code, wr);
+  });
 });

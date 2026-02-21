@@ -155,13 +155,13 @@ export const useTelegramWebApp = () => {
       });
     }
 
-    tg.BackButton?.onClick?.(() => {
-      window.history.back();
-    });
+    const backHandler = () => { window.history.back(); };
+    tg.BackButton?.onClick?.(backHandler);
 
     return () => {
       clearTimeout(retryExpand);
       tg.offEvent?.('viewportChanged', applyViewportHeight);
+      tg.BackButton?.offClick?.(backHandler);
     };
   }, [setUser]);
 
@@ -190,7 +190,7 @@ export const telegramUtils = {
   popup: (params: {
     title?: string;
     message: string;
-    buttons: Array<{ id: string; type?: string; text: string }>;
+    buttons: Array<{ id: string; type?: 'default' | 'ok' | 'close' | 'cancel' | 'destructive'; text: string }>;
   }): Promise<string> =>
     new Promise((resolve) => {
       window.Telegram?.WebApp?.showPopup?.(params, (buttonId) => resolve(buttonId));
@@ -209,7 +209,9 @@ export const telegramUtils = {
     const btn = window.Telegram?.WebApp?.MainButton;
     if (!btn) return;
     btn.setText(text);
+    if ((btn as any)._currentHandler) btn.offClick((btn as any)._currentHandler);
     btn.onClick(onClick);
+    (btn as any)._currentHandler = onClick;
     btn.show();
   },
 

@@ -11,6 +11,11 @@ const WEB_APP_URL = process.env.WEB_APP_URL || 'https://royale-dames.vercel.app'
 const CHAT_IDS_FILE = join(process.cwd(), 'chat-ids.json');
 
 let bot: TelegramBot | null = null;
+let registerRoomCodeFn: ((code: string) => void) | null = null;
+
+export function registerRoomCode(fn: (code: string) => void) {
+  registerRoomCodeFn = fn;
+}
 
 function loadChatIds(): number[] {
   try {
@@ -33,6 +38,15 @@ function saveChatId(chatId: number) {
     } catch (e) {
       console.warn('Erreur sauvegarde chat-ids:', e);
     }
+  }
+}
+
+function removeChatId(chatId: number) {
+  const ids = loadChatIds().filter(id => id !== chatId);
+  try {
+    writeFileSync(CHAT_IDS_FILE, JSON.stringify(ids, null, 2));
+  } catch (e) {
+    console.warn('Erreur suppression chat-id:', e);
   }
 }
 
@@ -62,9 +76,11 @@ export function startTelegramBot(): boolean {
   });
 
   bot.on('callback_query', async (query) => {
-    const chatId = query.message!.chat.id;
+    if (!query.message) return;
+    const chatId = query.message.chat.id;
     if (query.data === 'invite_friend') {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      registerRoomCodeFn?.(code);
       const inviteUrl = `${WEB_APP_URL}/?room=${code}`;
       await bot!.answerCallbackQuery(query.id).catch(() => {});
       bot!.sendMessage(
@@ -112,7 +128,7 @@ export function broadcastMatchSearch(
     }).catch((err) => {
       if (err?.response?.body?.description?.includes('blocked') ||
           err?.response?.body?.description?.includes('deactivated')) {
-        // Utilisateur a bloqué le bot, on pourrait le retirer de la liste
+        removeChatId(chatId);
       }
     });
   });

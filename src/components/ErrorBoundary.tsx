@@ -53,7 +53,7 @@ export class ErrorBoundary extends Component<Props, State> {
             {this.state.error.message}
           </pre>
           <button
-            onClick={() => this.setState({ hasError: false, error: null })}
+            onClick={() => window.location.reload()}
             style={{
               marginTop: 20,
               padding: '12px 24px',
@@ -65,7 +65,7 @@ export class ErrorBoundary extends Component<Props, State> {
               cursor: 'pointer',
             }}
           >
-            Réessayer
+            Recharger l'application
           </button>
         </div>
       );

@@ -39,3 +39,18 @@ html, body {
   to { transform: rotate(360deg); }
 }
 
+@keyframes bg-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes spin-rays {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes float-particle {
+  0% { transform: translateY(0) scale(1); opacity: 0.6; }
+  100% { transform: translateY(-100px) scale(0.3); opacity: 0; }
+}
+

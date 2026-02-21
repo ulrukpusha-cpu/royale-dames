@@ -8,12 +8,19 @@ const MANIFEST_URL =
 
 let connector: TonConnect | null = null;
 
+let restorePromise: Promise<void> | null = null;
+
 function getConnector(): TonConnect {
   if (!connector) {
     connector = new TonConnect({ manifestUrl: MANIFEST_URL });
-    connector.restoreConnection();
+    restorePromise = connector.restoreConnection().catch(() => {});
   }
   return connector;
+}
+
+export async function ensureRestored(): Promise<void> {
+  getConnector();
+  if (restorePromise) await restorePromise;
 }
 
 export type WalletCallbacks = {
@@ -110,17 +117,18 @@ export async function withdrawWinnings(amount: number): Promise<boolean> {
   const c = getConnector();
   if (!c.wallet) return false;
 
-  const contractAddress = 'VOTRE_ADRESSE_CONTRACT';
-  const userAddress = getTonWalletAddress();
+  if (BET_CONTRACT === 'VOTRE_ADRESSE_CONTRACT') {
+    console.warn('VITE_TON_BET_CONTRACT non configuré - retrait simulé');
+    return true;
+  }
+
   const nanoAmount = Math.floor(amount * 1e9);
-  const payload = btoa(
-    JSON.stringify({ action: 'withdraw', toAddress: userAddress, amount: nanoAmount, timestamp: Date.now() })
-  );
+  const payload = buildPlaceBetPayload();
 
   try {
     await c.sendTransaction({
       validUntil: Math.floor(Date.now() / 1000) + 360,
-      messages: [{ address: contractAddress, amount: '50000000', payload }],
+      messages: [{ address: BET_CONTRACT, amount: '50000000', payload }],
     });
     return true;
   } catch (error) {

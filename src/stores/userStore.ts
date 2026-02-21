@@ -61,21 +61,25 @@ export const useUserStore = create<UserState>()(
           return;
         }
         const firstName = userData.name?.split(' ')[0] || userData.name;
-        set({
-          user: {
-            id: userData.id || `tg_${userData.telegramId}`,
-            name: userData.name,
-            username: userData.username,
-            telegramId: userData.telegramId,
-            firstName,
-            lastName: userData.name?.split(' ').slice(1).join(' '),
-            photoUrl: userData.photoUrl,
-            provider: userData.provider,
-            rating: 1200,
-            wins: 0,
-            losses: 0,
-            draws: 0,
-          },
+        set((state) => {
+          const existing = state.user;
+          const isSameUser = existing && (existing.id === userData.id || existing.id === `tg_${userData.telegramId}`);
+          return {
+            user: {
+              id: userData.id || `tg_${userData.telegramId}`,
+              name: userData.name,
+              username: userData.username,
+              telegramId: userData.telegramId,
+              firstName,
+              lastName: userData.name?.split(' ').slice(1).join(' '),
+              photoUrl: userData.photoUrl,
+              provider: userData.provider,
+              rating: isSameUser ? existing.rating : 1200,
+              wins: isSameUser ? existing.wins : 0,
+              losses: isSameUser ? existing.losses : 0,
+              draws: isSameUser ? existing.draws : 0,
+            },
+          };
         });
       },
 

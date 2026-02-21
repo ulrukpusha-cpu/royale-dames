@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { useMultiplayer } from '@/hooks/useMultiplayer';
 const TonBettingPanel = lazy(() => import('@/components/TonBettingPanel').then(m => ({ default: m.TonBettingPanel })));
 import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
@@ -7,19 +6,15 @@ import {
   Trophy,
   User, 
   Wallet, 
-  Settings, 
-  Coins, 
   Smartphone, 
   Monitor, 
   Globe, 
   Play, 
   Users, 
   LogOut,
-  ChevronLeft,
   MessageSquare,
   BookOpen,
   X,
-  ScrollText,
   Volume2,
   VolumeX,
   Eye,
@@ -36,9 +31,6 @@ import {
   Minus,
   Loader2,
   ArrowUpRight,
-  Gem,
-  Link as LinkIcon,
-  CheckCircle2
 } from 'lucide-react';
 
 // --- THEMES & STYLES CONFIGURATION ---
@@ -128,44 +120,6 @@ const PIECE_SKINS = {
   wood: { name: 'Ébène & Ivoire', type: 'wood' },
   marble: { name: 'Marbre', type: 'marble' },
   neon: { name: 'Néon', type: 'glow' }
-};
-
-// --- SOUND SYSTEM ---
-const playSynth = (type: 'move' | 'capture' | 'win' | 'lose' | 'select' | 'promote', themeId: string = 'tabac') => {
-  try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-    const tone = (freq: number, wave: OscillatorType, start: number, dur: number, vol = 0.1) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = wave;
-      osc.frequency.setValueAtTime(freq, start);
-      gain.gain.setValueAtTime(0, start);
-      gain.gain.linearRampToValueAtTime(vol, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
-      osc.start(start); osc.stop(start + dur);
-    };
-    const isCyber = themeId === 'cyber';
-    switch (type) {
-      case 'select': tone(isCyber ? 500 : 180, 'sine', now, 0.08, 0.04); break;
-      case 'move': tone(isCyber ? 600 : 200, isCyber ? 'square' : 'sine', now, 0.1, 0.05); break;
-      case 'capture':
-        tone(isCyber ? 800 : 150, 'sawtooth', now, 0.1, 0.1);
-        tone(isCyber ? 400 : 100, 'sawtooth', now + 0.1, 0.2, 0.1); break;
-      case 'promote':
-        tone(440, 'triangle', now, 0.15, 0.08);
-        tone(660, 'triangle', now + 0.15, 0.15, 0.08); break;
-      case 'win':
-        [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => tone(f, isCyber ? 'square' : 'triangle', now + i * 0.15, 0.5, 0.1));
-        tone(1046.50, isCyber ? 'square' : 'triangle', now + 0.6, 1.0, 0.1); break;
-      case 'lose':
-        [440, 392, 349.23, 311.13].forEach((f, i) => tone(f, isCyber ? 'sawtooth' : 'sine', now + i * 0.2, 0.6, 0.1));
-        tone(155.56, isCyber ? 'sawtooth' : 'sine', now + 0.8, 1.0, 0.2); break;
-    }
-  } catch (e) { /* silence */ }
 };
 
 // --- AI DIFFICULTY ---
@@ -1506,7 +1460,7 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: guestCode, serverCod
   const shareToTelegram = (username?: string) => {
     const text = encodeURIComponent(`Rejoins-moi pour une partie de dames ! Code : ${code}\n${joinUrl}`);
     const url = username
-      ? `https://t.me/share/url?url=${encodeURIComponent(joinUrl)}&text=${text}`
+      ? `https://t.me/${username}?text=${text}`
       : `https://t.me/share/url?url=${encodeURIComponent(joinUrl)}&text=${text}`;
     const tg = (window as any).Telegram?.WebApp;
     if (tg) {
@@ -1614,13 +1568,6 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const boardContainerRef = useRef<HTMLDivElement>(null);
 
-  // Captured pieces
-  const flatBoard = board.reduce((acc: (Piece | null)[], row) => acc.concat(row), []);
-  const redPiecesLeft = flatBoard.filter(p => p?.color === 'red').length;
-  const whitePiecesLeft = flatBoard.filter(p => p?.color === 'white').length;
-  const capturedRed = 20 - redPiecesLeft;
-  const capturedWhite = 20 - whitePiecesLeft;
-  
   const handleBoardMouseMove = (e: React.MouseEvent) => {
     if (!boardContainerRef.current) return;
     const rect = boardContainerRef.current.getBoundingClientRect();
@@ -1642,8 +1589,19 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   useEffect(() => {
     if (winner || isPaused) return;
     const timer = setInterval(() => {
-      if (turn === 'white') setWhiteTime(t => Math.max(0, t - 1));
-      else setRedTime(t => Math.max(0, t - 1));
+      if (turn === 'white') {
+        setWhiteTime(t => {
+          const next = Math.max(0, t - 1);
+          if (next === 0) setWinner('red');
+          return next;
+        });
+      } else {
+        setRedTime(t => {
+          const next = Math.max(0, t - 1);
+          if (next === 0) setWinner('white');
+          return next;
+        });
+      }
     }, 1000);
     return () => clearInterval(timer);
   }, [turn, winner, isPaused]);
@@ -2037,13 +1995,10 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         newBoard[pos.r][pos.c] = null;
     });
 
-    // Promotion logic (International: Must stop on last row)
-    // However, if the capture sequence continues, it doesn't promote (passing through).
-    // Our simplified recursion logic handled the move chain as atomic, so we promote if end position is last row.
     let promoted = false;
     if ((piece.color === 'red' && move.to.r === 0) || (piece.color === 'white' && move.to.r === BOARD_SIZE - 1)) {
         if (!piece.isKing) {
-            piece.isKing = true;
+            newBoard[move.to.r][move.to.c] = { ...piece, isKing: true };
             promoted = true;
         }
     }
@@ -2102,7 +2057,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
       if (move.to.r === BOARD_SIZE - 1 && piece?.color === 'white' && !piece?.isKing) score += 50;
       if (move.to.r === 0 && piece?.color === 'red' && !piece?.isKing) score += 50;
       if (move.from.r === 0 || move.from.r === BOARD_SIZE - 1) score -= 3;
-      if (checkDanger(board, move.to, 'red')) score -= 20;
+      if (checkDanger(board, move.to, turn === 'white' ? 'red' : 'white')) score -= 20;
       if (move.to.c > 2 && move.to.c < 7) score += 3;
       return { ...move, score };
     });
@@ -2609,6 +2564,7 @@ const App = () => {
     const u = userData || { id: '123', name: 'Player One' };
     setUser({ ...u, provider });
     if (pendingRoomCode) {
+      setGameConfig({ mode: 'friend', bet: 0, currency: 'USD', rules: 'international', difficulty: 'medium', isSpectator: false });
       setView('friend_lobby');
     } else {
       setView('dashboard');
@@ -2645,6 +2601,15 @@ const App = () => {
 
   const handlePlay = (mode: string, bet: number, currency: string, rules: string, difficulty: AIDifficulty = 'medium') => {
     if (currency === 'USD' && wallet.usd < bet) return alert("Fonds insuffisants");
+    if (currency === 'ETH' && wallet.crypto < bet) return alert("Fonds crypto insuffisants");
+
+    if (bet > 0) {
+      setWallet(prev => ({
+        ...prev,
+        usd: currency === 'USD' ? prev.usd - bet : prev.usd,
+        crypto: currency === 'ETH' ? prev.crypto - bet : prev.crypto
+      }));
+    }
     
     setGameConfig({ mode, bet, currency, rules, difficulty, isSpectator: false });
     
@@ -2667,24 +2632,24 @@ const App = () => {
   };
 
   const handleGameOver = (winner: string) => {
-    // Handle payout (mock)
+    if (!gameConfig) { setView('dashboard'); return; }
     if (gameConfig.isSpectator) {
       setView('dashboard');
       return;
     }
 
+    const bet = gameConfig.bet || 0;
     if (winner === 'red') {
-      const winAmount = gameConfig.bet * 2;
       setWallet(prev => ({
         ...prev,
-        usd: gameConfig.currency === 'USD' ? prev.usd + winAmount : prev.usd,
-        crypto: gameConfig.currency === 'ETH' ? prev.crypto + winAmount : prev.crypto
+        usd: gameConfig.currency === 'USD' ? prev.usd + bet * 2 : prev.usd,
+        crypto: gameConfig.currency === 'ETH' ? prev.crypto + bet * 2 : prev.crypto
       }));
-    } else {
-       setWallet(prev => ({
+    } else if (winner === 'draw') {
+      setWallet(prev => ({
         ...prev,
-        usd: gameConfig.currency === 'USD' ? prev.usd - gameConfig.bet : prev.usd,
-        crypto: gameConfig.currency === 'ETH' ? prev.crypto - gameConfig.bet : prev.crypto
+        usd: gameConfig.currency === 'USD' ? prev.usd + bet : prev.usd,
+        crypto: gameConfig.currency === 'ETH' ? prev.crypto + bet : prev.crypto
       }));
     }
     
@@ -2752,8 +2717,8 @@ const App = () => {
             isConnected={multiplayer.isConnected}
             searchForMatch={multiplayer.searchForMatch}
             cancelSearch={multiplayer.cancelSearch}
-            betAmount={gameConfig.bet}
-            currency={gameConfig.currency}
+            betAmount={gameConfig?.bet ?? 0}
+            currency={gameConfig?.currency ?? 'USD'}
           />
         )}
       {view === 'friend_lobby' && (
@@ -2769,12 +2734,12 @@ const App = () => {
           serverCode={friendRoomCode}
           createRoom={multiplayer.createRoom}
           joinRoom={multiplayer.joinRoom}
-          betAmount={gameConfig.bet}
-          currency={gameConfig.currency}
+          betAmount={gameConfig?.bet ?? 0}
+          currency={gameConfig?.currency ?? 'USD'}
           friends={friends}
         />
       )}
-      {view === 'game' && (
+      {view === 'game' && gameConfig && (
         <BoardGame 
           mode={gameConfig.mode} 
           bet={gameConfig.bet} 

@@ -2,6 +2,7 @@
  * Fournisseurs racine - Royale Dames
  * Initialise Telegram WebApp (expand, couleurs, userStore), TonConnect
  */
+import React from 'react';
 import { useTelegramWebApp } from '@/lib/telegram';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
 
