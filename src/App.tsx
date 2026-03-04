@@ -616,280 +616,107 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
       <div style={{...s.panel, maxWidth: '500px'}}>
         
         {/* TOP BAR */}
-        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '12px'}}>
-           <div style={{display: 'flex', alignItems: 'center', gap: '14px'}}>
-              {/* Avatar with Rank Badge */}
-              <div style={{position: 'relative'}}>
-                  <div style={{
-                      width: '44px', height: '44px', borderRadius: '50%', 
-                      background: `linear-gradient(135deg, ${currentTheme.gold}, ${currentTheme.goldDim})`, 
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                      border: '2px solid rgba(255,255,255,0.1)',
-                      boxShadow: `0 0 15px ${currentTheme.gold}30`
-                  }}>
-                    <User color="#2a1a08" size={24} />
-                  </div>
-                  <div style={{
-                      position: 'absolute', bottom: -2, right: -4, 
-                      background: currentTheme.bg, 
-                      borderRadius: '50%', padding: '2px',
-                      border: `1px solid ${currentTheme.gold}`
-                  }}>
-                      <div style={{
-                          background: currentTheme.gold, borderRadius: '50%', 
-                          width: '16px', height: '16px', 
-                          display: 'flex', alignItems: 'center', justifyContent: 'center'
-                      }}>
-                         <Crown size={10} color="#2a1a08" strokeWidth={3} />
-                      </div>
-                  </div>
-              </div>
-              
-              <div style={{textAlign: 'left'}}>
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                    <div style={{fontWeight: '900', fontSize: '16px', color: currentTheme.text, letterSpacing: '0.5px'}}>
-                        {user.name}
-                    </div>
-                    <div style={{
-                        padding: '2px 6px', borderRadius: '4px', 
-                        background: `linear-gradient(90deg, ${currentTheme.gold}, ${currentTheme.goldDim})`,
-                        color: '#2a1a08', fontSize: '9px', fontWeight: '800',
-                        textTransform: 'uppercase', letterSpacing: '1px',
-                        boxShadow: `0 2px 5px ${currentTheme.gold}40`
-                    }}>
-                        VIP
-                    </div>
-                </div>
-                <div style={{
-                    color: currentTheme.textDim, fontSize: '11px', fontWeight: '500', 
-                    marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px'
-                }}>
-                    <span style={{width: '6px', height: '6px', borderRadius: '50%', background: currentTheme.success, boxShadow: `0 0 5px ${currentTheme.success}`}}></span>
-                    Grand Maître
-                </div>
-              </div>
-           </div>
-           
-           <button onClick={onLogout} style={{
-               background: 'rgba(255,255,255,0.05)', border: `1px solid ${currentTheme.textDim}40`, 
-               color: currentTheme.textDim, cursor: 'pointer', padding: '8px', borderRadius: '8px',
-               transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center'
-           }}>
-             <LogOut size={16} />
-           </button>
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', paddingBottom: '8px', borderBottom: `1px solid ${currentTheme.textDim}20`}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <div style={{width: '42px', height: '42px', borderRadius: '50%', background: `linear-gradient(135deg, ${currentTheme.gold}, ${currentTheme.accent})`, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(255,255,255,0.2)', boxShadow: `0 0 15px ${currentTheme.gold}40`}}>
+              <User color="#fff" size={20} />
+            </div>
+            <div style={{textAlign: 'left'}}>
+              <div style={{fontWeight: '900', fontSize: '15px', color: currentTheme.text}}>{user.name}</div>
+              <div style={{color: currentTheme.textDim, fontSize: '10px', fontWeight: 'bold'}}>{wallet.dames?.toLocaleString() ?? 0} $Dames</div>
+            </div>
+          </div>
+          <TactileButton variant="secondary" theme={currentTheme} onClick={onLogout} style={{padding: '8px 12px', minWidth: 'auto', height: 'auto'}}><LogOut size={14} /></TactileButton>
         </div>
 
         {/* TABS */}
-        <div style={{display: 'flex', gap: '4px', marginBottom: '20px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '10px', overflowX: 'auto', flexWrap: 'nowrap', minWidth: 0}}>
-           <button 
-             onClick={() => setTab('play')} 
-             style={{flex: '1 1 0', minWidth: '52px', padding: '8px 4px', borderRadius: '8px', border: 'none', background: tab === 'play' ? currentTheme.gold : 'transparent', color: tab === 'play' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s'}}
-           >
-             JOUER
-           </button>
-           <button 
-             onClick={() => setTab('atelier')} 
-             style={{flex: '1 1 0', minWidth: '52px', padding: '8px 4px', borderRadius: '8px', border: 'none', background: tab === 'atelier' ? currentTheme.gold : 'transparent', color: tab === 'atelier' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s'}}
-           >
-             ATELIER
-           </button>
-           <button 
-             onClick={() => setTab('historique')} 
-             style={{flex: '1 1 0', minWidth: '52px', padding: '8px 4px', borderRadius: '8px', border: 'none', background: tab === 'historique' ? currentTheme.gold : 'transparent', color: tab === 'historique' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s'}}
-           >
-             HISTO.
-           </button>
-           <button 
-             onClick={() => setTab('coffre')} 
-             style={{flex: '1 1 0', minWidth: '52px', padding: '8px 4px', borderRadius: '8px', border: 'none', background: tab === 'coffre' ? currentTheme.gold : 'transparent', color: tab === 'coffre' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s'}}
-           >
-             COFFRE
-           </button>
-           <button 
-             onClick={() => setTab('amis')} 
-             style={{flex: '1 1 0', minWidth: '52px', padding: '8px 4px', borderRadius: '8px', border: 'none', background: tab === 'amis' ? currentTheme.gold : 'transparent', color: tab === 'amis' ? '#2a1a08' : currentTheme.textDim, fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s'}}
-           >
-             AMIS
-           </button>
+        <div style={{display: 'flex', gap: '6px', marginBottom: '16px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '14px'}}>
+          {[
+            {id: 'play', icon: <Play size={14} />, label: 'Jeu'},
+            {id: 'atelier', icon: <Palette size={14} />, label: 'Atelier'},
+            {id: 'amis', icon: <Users size={14} />, label: 'Amis'},
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id as any)} style={{
+              flex: 1, padding: '8px', borderRadius: '10px', border: 'none',
+              background: tab === t.id ? currentTheme.gold : 'transparent',
+              color: tab === t.id ? '#2a1a08' : currentTheme.textDim,
+              fontWeight: 'bold', fontSize: '11px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+              transition: 'all 0.2s'
+            }}>{t.icon} {t.label}</button>
+          ))}
         </div>
 
         {tab === 'play' && (
-          <>
-            {/* Wallet */}
-            <div style={{background: 'rgba(0,0,0,0.25)', padding: '16px', borderRadius: '14px', marginBottom: '20px', border: `1px solid rgba(255,255,255,0.05)`}}>
+          <div style={{animation: 'fadeIn 0.3s'}}>
+            {/* Solde Disponible */}
+            <div style={{background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '16px', marginBottom: '16px', border: `1px solid ${currentTheme.textDim}10`}}>
               <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '6px'}}>
-                <span style={{color: currentTheme.textDim, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px'}}>Solde</span>
-                <div style={{display: 'flex', gap: '6px'}}>
-                  <span onClick={() => setCurrency('USD')} style={{...s.chip, ...(currency === 'USD' ? s.chipActive : {})}}>USD</span>
-                  <span onClick={() => setCurrency('ETH')} style={{...s.chip, ...(currency === 'ETH' ? s.chipActive : {})}}>CRYPTO</span>
+                <span style={{color: currentTheme.textDim, fontSize: '10px', textTransform: 'uppercase'}}>Solde Disponible</span>
+              </div>
+              <div style={{fontSize: '28px', fontWeight: '900', fontFamily: currentTheme.fontMain, color: currentTheme.text, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px'}}>
+                ${wallet.usd.toLocaleString()}
+              </div>
+              <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
+                <div style={{padding: '3px 10px', borderRadius: '20px', background: `${currentTheme.gold}20`, color: currentTheme.gold, fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                  <Crown size={12} /> {wallet.dames?.toLocaleString() ?? 0} $Dames
                 </div>
               </div>
-              <div style={{display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between'}}>
-                <div style={{fontSize: '28px', fontWeight: '900', fontFamily: currentTheme.fontMain, color: currentTheme.text, textShadow: '0 2px 10px rgba(0,0,0,0.5)'}}>
-                  {currency === 'USD' ? `$${wallet.usd.toLocaleString()}` : `${wallet.crypto.toFixed(4)} ETH`}
-                </div>
-                <button 
-                  onClick={() => setShowWalletModal(true)}
-                  style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: `1px solid ${currentTheme.gold}`,
-                    color: currentTheme.gold,
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '10px',
-                    fontWeight: '800',
-                    transition: 'all 0.2s',
-                    marginBottom: '4px'
-                  }}
-                >
-                  <Wallet size={14} strokeWidth={2.5} />
-                  {connectedWallets.metamask || connectedWallets.ton ? 'Connecté' : (currency === 'ETH' ? 'CONNECTER' : 'WALLET')}
-                </button>
+
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px'}}>
+                <TactileButton theme={currentTheme} onClick={() => setShowDepositModal(true)} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px', background: `linear-gradient(135deg, ${currentTheme.success || '#27ae60'} 0%, ${(currentTheme.success || '#27ae60')}dd 100%)`, boxShadow: '0 4px 0 rgba(0,0,0,0.2)'}}>
+                  <Plus size={16} /> <span>RECHARGER</span>
+                </TactileButton>
+                <TactileButton variant="secondary" theme={currentTheme} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px'}}>
+                  <ArrowUpRight size={16} /> <span>RETRAIT</span>
+                </TactileButton>
+                <TactileButton variant="secondary" theme={currentTheme} onClick={() => setShowWalletModal(true)} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px'}}>
+                  <Wallet size={16} /> <span>WALLET</span>
+                </TactileButton>
               </div>
             </div>
 
-            {/* Config Grid */}
-            <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '20px'}}>
-               {/* Bet */}
-               <div>
-                  <label style={{color: currentTheme.textDim, fontSize: '11px', display: 'block', marginBottom: '6px', textAlign: 'left'}}>MISE</label>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '6px', borderRadius: '10px'}}>
-                    <button onClick={() => setBetAmount(Math.max(5, betAmount - 5))} style={{width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: 'rgba(255,255,255,0.1)', color: currentTheme.text, fontSize: '18px', cursor: 'pointer'}}>-</button>
-                    <div style={{flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: '18px', fontFamily: currentTheme.fontMain}}>{currency === 'USD' ? '$' : 'Ξ'}{betAmount}</div>
-                    <button onClick={() => setBetAmount(betAmount + 5)} style={{width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: 'rgba(255,255,255,0.1)', color: currentTheme.text, fontSize: '18px', cursor: 'pointer'}}>+</button>
-                  </div>
-               </div>
-
-               {/* Rules */}
-               <div>
-                 <label style={{color: currentTheme.textDim, fontSize: '11px', display: 'block', marginBottom: '6px', textAlign: 'left'}}>RÈGLES</label>
-                 <div style={{display: 'flex', gap: '8px'}}>
-                    {/* Simplified for the update, keeping UI but logic is forced International 10x10 */}
-                    <RuleButton 
-                      label="STANDARD" 
-                      value="standard" 
-                      isSelected={false} 
-                      onClick={() => alert("Ce mode est temporairement désactivé pour la compétition Grand Maître (10x10 uniquement).")} 
-                      theme={currentTheme} 
-                    />
-                    <RuleButton 
-                      label="INTL" 
-                      value="international" 
-                      isSelected={true} 
-                      onClick={setRules} 
-                      theme={currentTheme} 
-                    />
-                 </div>
-               </div>
+            {/* Mise */}
+            <div style={{display: 'flex', gap: '10px', marginBottom: '16px'}}>
+              <div style={{flex: 1, display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '6px', borderRadius: '12px'}}>
+                <TactileButton variant="secondary" theme={currentTheme} onClick={() => setBetAmount(Math.max(5, betAmount - 5))} style={{padding: '8px', minWidth: '32px', height: '32px'}}><Minus size={14} /></TactileButton>
+                <div style={{flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: '16px', fontFamily: currentTheme.fontMain}}>${betAmount}</div>
+                <TactileButton variant="secondary" theme={currentTheme} onClick={() => setBetAmount(betAmount + 5)} style={{padding: '8px', minWidth: '32px', height: '32px'}}><Plus size={14} /></TactileButton>
+              </div>
             </div>
 
-            {/* Selected Bet Indicator (Added feature) */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              marginBottom: '20px', padding: '10px',
-              background: `linear-gradient(90deg, transparent 0%, rgba(${parseInt(currentTheme.gold.slice(1,3),16)}, ${parseInt(currentTheme.gold.slice(3,5),16)}, ${parseInt(currentTheme.gold.slice(5,7),16)}, 0.1) 50%, transparent 100%)`,
-              borderTop: `1px solid rgba(${parseInt(currentTheme.gold.slice(1,3),16)}, ${parseInt(currentTheme.gold.slice(3,5),16)}, ${parseInt(currentTheme.gold.slice(5,7),16)}, 0.3)`,
-              borderBottom: `1px solid rgba(${parseInt(currentTheme.gold.slice(1,3),16)}, ${parseInt(currentTheme.gold.slice(3,5),16)}, ${parseInt(currentTheme.gold.slice(5,7),16)}, 0.3)`
-            }}>
-               <span style={{fontFamily: currentTheme.fontBody, fontSize: '11px', color: currentTheme.textDim, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600}}>
-                 Mise en jeu :
-               </span>
-               <span style={{
-                 fontFamily: currentTheme.fontMain, 
-                 fontSize: '18px', 
-                 color: currentTheme.gold, 
-                 fontWeight: '900', 
-                 textShadow: `0 0 10px ${currentTheme.goldDim}`,
-                 display: 'flex', alignItems: 'center', gap: '4px'
-               }}>
-                 {currency === 'USD' ? <span style={{fontSize: '16px'}}>$</span> : <span style={{fontSize: '16px'}}>Ξ</span>}
-                 {betAmount}
-               </span>
-            </div>
-
-            {/* AI Difficulty Selector */}
-            <div style={{marginBottom: '12px'}}>
-              <div style={{fontSize: '11px', color: currentTheme.textDim, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '1px'}}>Niveau IA</div>
-              <div style={{display: 'flex', gap: '6px'}}>
-                {([['easy', '🌱 Novice'], ['medium', '⚔️ Pro'], ['hard', '👑 Master']] as [AIDifficulty, string][]).map(([key, label]) => (
-                  <div key={key} onClick={() => setAiDifficulty(key)} style={{
-                    flex: 1, padding: '8px 4px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', fontSize: '12px', fontWeight: aiDifficulty === key ? '800' : '500',
-                    background: aiDifficulty === key ? `linear-gradient(135deg, ${currentTheme.gold}, ${currentTheme.goldDim})` : 'rgba(0,0,0,0.2)',
-                    color: aiDifficulty === key ? '#1a1a1a' : currentTheme.textDim,
-                    border: aiDifficulty === key ? 'none' : `1px solid rgba(255,255,255,0.1)`,
+            {/* Niveau IA (Solo) */}
+            <div style={{marginBottom: '16px'}}>
+              <div style={{fontSize: '10px', textTransform: 'uppercase', color: currentTheme.textDim, marginBottom: '6px', fontWeight: 'bold'}}>Niveau IA (Solo)</div>
+              <div style={{display: 'flex', gap: '6px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '12px'}}>
+                {([['easy', 'Novice'], ['medium', 'Pro'], ['hard', 'Master']] as [AIDifficulty, string][]).map(([key, label]) => (
+                  <button key={key} onClick={() => setAiDifficulty(key)} style={{
+                    flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
+                    background: aiDifficulty === key ? currentTheme.gold : 'transparent',
+                    color: aiDifficulty === key ? '#2a1a08' : currentTheme.textDim,
+                    fontWeight: 'bold', fontSize: '10px', cursor: 'pointer', textTransform: 'uppercase',
                     transition: 'all 0.2s'
-                  }}>{label}</div>
+                  }}>{label}</button>
                 ))}
               </div>
             </div>
 
             {/* Action Buttons */}
             <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px'}}>
-              <TactileButton theme={currentTheme} onClick={() => onPlay('solo', betAmount, currency, rules, aiDifficulty)} style={{flexDirection: 'column', padding: '20px 12px', background: 'linear-gradient(180deg, #5d4037 0%, #3e2723 100%)', boxShadow: '0 4px 0 #2b1d16', color: '#e6d5ac', borderTop: '1px solid rgba(255,255,255,0.1)'}}>
-                <Monitor size={24} style={{marginBottom: '4px', opacity: 0.8}} />
-                <span>SOLO</span>
+              <TactileButton theme={currentTheme} onClick={() => onPlay('solo', betAmount, currency, rules, aiDifficulty)} style={{flexDirection: 'column', padding: '16px 10px', gap: '8px'}}>
+                <Monitor size={24} /><span>SOLO</span>
               </TactileButton>
-              <TactileButton theme={currentTheme} onClick={() => onPlay('multi', betAmount, currency, rules)} style={{flexDirection: 'column', padding: '20px 12px'}}>
-                <Users size={24} style={{marginBottom: '4px'}} />
-                <span>EN LIGNE</span>
+              <TactileButton theme={currentTheme} onClick={() => onPlay('multi', betAmount, currency, rules)} style={{flexDirection: 'column', padding: '16px 10px', gap: '8px'}}>
+                <Globe size={24} /><span>LIGNE</span>
               </TactileButton>
             </div>
 
-            <TactileButton 
-              theme={currentTheme} 
-              onClick={() => onPlay('friend', betAmount, currency, rules)} 
-              style={{
-                width: '100%', 
-                flexDirection: 'row', 
-                gap: '10px',
-                background: `linear-gradient(180deg, ${currentTheme.success} 0%, #1e8449 100%)`, 
-                boxShadow: `0 4px 0 #145a32`, 
-                color: 'white',
-                borderTop: '1px solid rgba(255,255,255,0.2)'
-              }}
-            >
-              <UserPlus size={20} />
-              <span>INVITER UN AMI</span>
+            <TactileButton theme={currentTheme} onClick={() => onPlay('friend', betAmount, currency, rules)} style={{width: '100%', gap: '8px', marginBottom: '12px'}}>
+              <UserPlus size={18} /><span>PARTIE PRIVEE</span>
             </TactileButton>
 
-            <TactileButton 
-              theme={currentTheme} 
-              onClick={() => onPlay('local', 0, 'USD', rules)} 
-              style={{
-                width: '100%', 
-                marginTop: '12px',
-                flexDirection: 'row', 
-                gap: '10px',
-                background: 'rgba(255, 255, 255, 0.1)', 
-                boxShadow: 'none',
-                border: `1px solid ${currentTheme.textDim}`,
-                color: currentTheme.text
-              }}
-            >
-              <Smartphone size={20} />
-              <span>1 vs 1 LOCAL (SANS MISE)</span>
-            </TactileButton>
-
-            <TactileButton 
-              theme={currentTheme} 
-              onClick={handleOpenSpectateModal} 
-              style={{
-                width: '100%', 
-                marginTop: '12px',
-                flexDirection: 'row', 
-                gap: '10px',
-                background: 'rgba(0, 0, 0, 0.3)', 
-                boxShadow: 'none',
-                border: `1px solid ${currentTheme.accent}`,
-                color: currentTheme.accent
-              }}
-            >
-              <Tv size={20} />
-              <span>MODE SPECTATEUR</span>
+            <TactileButton variant="secondary" theme={currentTheme} onClick={handleOpenSpectateModal} style={{width: '100%', padding: '12px', color: currentTheme.gold}}>
+              <Eye size={16} /> <span>REGARDER UNE PARTIE (LIVE)</span>
             </TactileButton>
 
             {/* Modal spectateur : matches amis ou démo */}
@@ -979,7 +806,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
         
         {tab === 'atelier' && (
@@ -2343,7 +2170,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
             <p style={{marginTop: '8px', fontSize: '16px'}}>
                {isSpectator 
                  ? 'La partie est terminée.' 
-                 : (winner === 'red' ? `Vous avez gagné ${currency === 'USD' ? '$' : 'ETH'} ${bet * 2}!` : 'Meilleure chance la prochaine fois.')
+                 : (winner === 'red' ? `Vous avez gagné ${bet > 0 ? `${currency === 'USD' ? '$' : 'ETH'} ${bet * 2} + ` : ''}50 $Dames !` : 'Meilleure chance la prochaine fois.')
                }
             </p>
             <TactileButton theme={theme} onClick={() => onGameOver(winner)} style={{marginTop: '24px'}}>
@@ -2540,7 +2367,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
 const App = () => {
   const [view, setView] = useState<'login' | 'dashboard' | 'lobby' | 'friend_lobby' | 'game'>('login');
   const [user, setUser] = useState<any>(null);
-  const [wallet, setWallet] = useState({ usd: 1000, crypto: 1.5 });
+  const [wallet, setWallet] = useState({ usd: 0, crypto: 0, dames: 500 });
   const [gameConfig, setGameConfig] = useState<any>(null);
   
   // Customization States
@@ -2710,13 +2537,15 @@ const App = () => {
       setWallet(prev => ({
         ...prev,
         usd: gameConfig.currency === 'USD' ? prev.usd + bet * 2 : prev.usd,
-        crypto: gameConfig.currency === 'ETH' ? prev.crypto + bet * 2 : prev.crypto
+        crypto: gameConfig.currency === 'ETH' ? prev.crypto + bet * 2 : prev.crypto,
+        dames: (prev.dames || 0) + 50
       }));
     } else if (winner === 'draw') {
       setWallet(prev => ({
         ...prev,
         usd: gameConfig.currency === 'USD' ? prev.usd + bet : prev.usd,
-        crypto: gameConfig.currency === 'ETH' ? prev.crypto + bet : prev.crypto
+        crypto: gameConfig.currency === 'ETH' ? prev.crypto + bet : prev.crypto,
+        dames: (prev.dames || 0) + 10
       }));
     }
     
