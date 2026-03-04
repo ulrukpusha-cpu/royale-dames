@@ -420,7 +420,7 @@ const SplashScreen = ({ onComplete, theme }: { onComplete: () => void; theme: an
         <div style={{ width: '100%', aspectRatio: 1, maxWidth: 280, marginBottom: 24, borderRadius: '50%', overflow: 'hidden', boxShadow: `0 0 40px ${theme.gold}40` }}>
           {!imgError ? (
             <img
-              src="/splash.gif"
+              src={`${String((import.meta as any).env?.BASE_URL ?? '/').replace(/\/+$/, '')}/splash.gif`}
               alt="Dame Tabac"
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               onError={() => setImgError(true)}
@@ -483,87 +483,7 @@ const AccueilScreen = ({ onMenu, onAtelier, theme }: { onMenu: () => void; onAte
   );
 };
 
-// 1. LOGIN SCREEN — Connexion Google et Telegram fonctionnelle
-const LoginScreen = ({ onLogin, theme }: any) => {
-  const s = getStyles(theme);
-  const [loading, setLoading] = useState<'google' | 'telegram' | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleTelegram = () => {
-    setLoading('telegram');
-    setError(null);
-    const tg = (window as any).Telegram?.WebApp;
-    if (tg?.initDataUnsafe?.user) {
-      const u = tg.initDataUnsafe.user;
-      const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Joueur Telegram';
-      onLogin('telegram', { id: String(u.id), name, username: u.username });
-    } else {
-      setLoading(null);
-      setError('Ouvre l\'app depuis Telegram (@royaledamesbot) pour te connecter avec ton compte.');
-    }
-  };
-
-  const handleGoogle = () => {
-    setLoading('google');
-    setError(null);
-    // Google OAuth : configure VITE_GOOGLE_CLIENT_ID dans .env pour une vraie connexion.
-    const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
-    if (clientId) {
-      const redirect = encodeURIComponent(window.location.origin + window.location.pathname);
-      const scope = encodeURIComponent('openid email profile');
-      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirect}&response_type=token&scope=${scope}`;
-    } else {
-      setTimeout(() => {
-        setLoading(null);
-        onLogin('google', { id: 'demo', name: 'Joueur Google (démo)' });
-      }, 1000);
-    }
-  };
-
-  return (
-    <div style={s.main}>
-      <div style={{...s.panel, animation: 'fadeIn 0.6s ease-out'}}>
-        <div style={{
-          width: '70px', height: '70px', margin: '0 auto 16px', 
-          background: `radial-gradient(circle at 30% 30%, ${theme.gold}, ${theme.goldDim})`,
-          borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 0 30px ${theme.goldDim}`
-        }}>
-          <Trophy size={32} color="#2a1a08" />
-        </div>
-        <h1 style={{...s.logo, fontSize: '28px', marginBottom: '6px'}}>ROYAL DAMES</h1>
-        <p style={{color: theme.textDim, marginBottom: '32px', fontSize: '12px', letterSpacing: '0.5px'}}>LE CERCLE DES STRATÈGES</p>
-        
-        {error && <div style={{marginBottom: '16px', padding: '10px', background: 'rgba(220,53,69,0.2)', borderRadius: '8px', color: '#dc3545', fontSize: '12px'}}>{error}</div>}
-        
-        <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
-          <TactileButton 
-            theme={theme}
-            onClick={handleGoogle}
-            style={{background: 'linear-gradient(180deg, #dd4b39 0%, #c23321 100%)', boxShadow: '0 4px 0 #901e0f', color: 'white'}}
-            disabled={loading !== null}
-          >
-            {loading === 'google' ? 'Connexion...' : <><Globe size={18} /> Google</>}
-          </TactileButton>
-          <TactileButton 
-            theme={theme}
-            onClick={handleTelegram}
-            style={{background: 'linear-gradient(180deg, #29b6f6 0%, #0288d1 100%)', boxShadow: '0 4px 0 #01579b', color: 'white'}}
-            disabled={loading !== null}
-          >
-            {loading === 'telegram' ? 'Connexion...' : <><MessageSquare size={18} /> Telegram</>}
-          </TactileButton>
-        </div>
-        
-        <div style={{marginTop: '24px', fontSize: '10px', color: theme.textDim, opacity: 0.7}}>
-          En entrant, vous acceptez les règles du club et la politique de jeu responsable.
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 2. MAIN MENU / DASHBOARD
+// 1. MAIN MENU / DASHBOARD
 // --- DEPOSIT MODAL (MOBILE MONEY) ---
 const DepositModal = ({ theme, onClose, onSuccess }: any) => {
   const s = getStyles(theme);
@@ -622,9 +542,8 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
   const [betAmount, setBetAmount] = useState(10);
   const [rules, setRules] = useState<'standard' | 'international'>('international'); 
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
-  const [tab, setTab] = useState<'play' | 'atelier' | 'bonus' | 'historique' | 'coffre' | 'amis'>(initialTab);
+  const [tab, setTab] = useState<'play' | 'bonus' | 'historique' | 'coffre' | 'amis'>(initialTab);
   const [balanceMode, setBalanceMode] = useState<'TON' | 'DAMES' | 'Fiat'>('TON');
-  const [showGuideAide, setShowGuideAide] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showTonBetting, setShowTonBetting] = useState(false);
   const [connectedWallets, setConnectedWallets] = useState<{ metamask?: string; ton?: string }>({});
@@ -727,13 +646,12 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
           <TactileButton variant="secondary" theme={currentTheme} onClick={onLogout} style={{padding: '8px 12px', minWidth: 'auto', height: 'auto'}}><LogOut size={14} /></TactileButton>
         </div>
 
-        {/* TABS */}
+        {/* TABS — Jeu, Bonus, Amis (Atelier reste sur la page d'accueil) */}
         <div style={{display: 'flex', gap: '6px', marginBottom: '16px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '14px'}}>
           {[
             {id: 'play', icon: <Play size={14} />, label: 'Jeu'},
             {id: 'bonus', icon: <Crown size={14} />, label: 'Bonus'},
             {id: 'amis', icon: <Users size={14} />, label: 'Amis'},
-            {id: 'atelier', icon: <Palette size={14} />, label: 'Atelier'},
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id as any)} style={{
               flex: 1, padding: '8px', borderRadius: '10px', border: 'none',
@@ -858,10 +776,6 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
 
             <TactileButton variant="secondary" theme={currentTheme} onClick={handleOpenSpectateModal} style={{width: '100%', padding: '12px', color: currentTheme.gold}}>
               <Eye size={16} /> <span>REGARDER UNE PARTIE (LIVE)</span>
-            </TactileButton>
-
-            <TactileButton variant="secondary" theme={currentTheme} onClick={() => setShowGuideAide(true)} style={{width: '100%', marginTop: '8px', padding: '12px', gap: '8px'}}>
-              <BookOpen size={16} /> <span>AIDE — Guide du jeu</span>
             </TactileButton>
 
             {/* Modal spectateur : matches amis ou démo */}
@@ -1058,100 +972,6 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
             </div>
           );
         })()}
-
-        {tab === 'atelier' && (
-          /* ATELIER TAB */
-          <div style={{textAlign: 'left'}}>
-            <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>Chronomètre</h3>
-            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px'}}>
-              <span style={{fontSize: '13px', color: currentTheme.text}}>Activer le chronomètre</span>
-              <button
-                onClick={() => setTimerEnabled?.(!timerEnabled)}
-                style={{
-                  width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
-                  background: timerEnabled ? currentTheme.gold : 'rgba(255,255,255,0.2)',
-                  position: 'relative', transition: 'background 0.2s'
-                }}
-              >
-                <div style={{
-                  position: 'absolute', top: 2, left: timerEnabled ? 24 : 2, width: 22, height: 22, borderRadius: '50%',
-                  background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.3)', transition: 'left 0.2s'
-                }} />
-              </button>
-            </div>
-            <div style={{marginBottom: '20px'}}>
-              <div style={{fontSize: '12px', color: currentTheme.textDim, marginBottom: '8px'}}>Temps par joueur</div>
-              <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
-                {[60, 120, 180, 300, 420].map(sec => (
-                  <button
-                    key={sec}
-                    onClick={() => setTimerSeconds?.(sec)}
-                    style={{
-                      padding: '8px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                      background: timerSeconds === sec ? currentTheme.gold : 'rgba(0,0,0,0.3)',
-                      color: timerSeconds === sec ? '#2a1a08' : currentTheme.textDim,
-                      fontWeight: 'bold', fontSize: '12px'
-                    }}
-                  >
-                    {sec === 60 ? '1 min' : sec === 120 ? '2 min' : sec === 180 ? '3 min' : sec === 300 ? '5 min' : '7 min'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>Thème de la Salle</h3>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '24px'}}>
-              {Object.values(THEMES).map((t: any) => (
-                <div 
-                  key={t.id} 
-                  onClick={() => handleThemeClick(t)}
-                  style={{
-                    padding: '8px', borderRadius: '10px', 
-                    background: t.id === currentTheme.id ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    border: t.id === currentTheme.id ? `1px solid ${currentTheme.gold}` : '1px solid transparent',
-                    cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
-                  }}
-                >
-                  <div style={{width: '32px', height: '32px', borderRadius: '50%', background: t.bgGradient, border: '2px solid rgba(255,255,255,0.2)', boxShadow: '0 4px 10px rgba(0,0,0,0.5)'}} />
-                  <span style={{fontSize: '11px', color: t.id === currentTheme.id ? currentTheme.gold : currentTheme.textDim, fontWeight: 'bold'}}>{t.name}</span>
-                </div>
-              ))}
-            </div>
-
-            <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>Finition des Pions</h3>
-            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
-               {Object.entries(PIECE_SKINS).map(([key, skin]: any) => (
-                 <div 
-                   key={key}
-                   onClick={() => handleSkinClick(key)}
-                   style={{
-                     padding: '10px', borderRadius: '10px',
-                     background: 'rgba(0,0,0,0.2)',
-                     border: currentSkin === key ? `1px solid ${currentTheme.gold}` : '1px solid transparent',
-                     display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer'
-                   }}
-                 >
-                   {/* Piece Preview */}
-                   <div style={{
-                     width: '24px', height: '24px', borderRadius: '50%',
-                     background: key === 'wood' ? 'radial-gradient(circle, #8b4513, #3e2723)' : 
-                                 key === 'marble' ? 'radial-gradient(circle at 30% 30%, #fff, #bdc3c7)' :
-                                 key === 'neon' ? '#333' : '#d63031',
-                     boxShadow: key === 'neon' ? `0 0 10px ${currentTheme.accent}` : '0 2px 5px rgba(0,0,0,0.5)',
-                     border: key === 'neon' ? `2px solid ${currentTheme.accent}` : 'none'
-                   }} />
-                   <span style={{fontSize: '12px', color: currentSkin === key ? currentTheme.text : currentTheme.textDim}}>{skin.name}</span>
-                   {currentSkin === key && <Check size={14} color={currentTheme.gold} style={{marginLeft: 'auto'}} />}
-                 </div>
-               ))}
-            </div>
-            
-            <div style={{marginTop: '24px', padding: '12px', background: 'rgba(197, 160, 89, 0.1)', borderRadius: '10px', fontSize: '11px', color: currentTheme.textDim, fontStyle: 'italic'}}>
-               Confirmez votre choix pour appliquer le nouveau style.
-            </div>
-
-          </div>
-        )}
 
         {tab === 'historique' && (
           <div style={{textAlign: 'left', maxHeight: '450px', overflowY: 'auto', paddingRight: '4px'}}>
@@ -1466,29 +1286,6 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
         </div>
       )}
 
-      {/* MODAL AIDE — Guide du jeu */}
-      {showGuideAide && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.85)', zIndex: 125,
-          backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
-        }}>
-          <div style={{...s.panel, textAlign: 'left', maxWidth: '400px', maxHeight: '85vh', overflowY: 'auto', border: `1px solid ${currentTheme.gold}`}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
-              <h3 style={{margin: 0, fontFamily: currentTheme.fontMain, color: currentTheme.gold, fontSize: '18px'}}>Guide du jeu — Règles internationales (10×10)</h3>
-              <button onClick={() => setShowGuideAide(false)} style={{background: 'none', border: 'none', color: currentTheme.text, cursor: 'pointer'}}><X size={20} /></button>
-            </div>
-            <ul style={{fontSize: '13px', lineHeight: '1.6', color: currentTheme.text, paddingLeft: '20px', margin: 0}}>
-              <li style={{marginBottom: '8px'}}><strong>Pions :</strong> Déplacement 1 case en diagonale. Prise avant ET arrière.</li>
-              <li style={{marginBottom: '8px'}}><strong style={{color: currentTheme.accent}}>Quantité :</strong> La prise est obligatoire. Vous devez choisir la suite qui capture le plus de pièces.</li>
-              <li style={{marginBottom: '8px'}}><strong style={{color: currentTheme.gold}}>Dames :</strong> Traversent toute la diagonale. Prise à distance.</li>
-              <li style={{marginBottom: '8px'}}>Une dame est obtenue en atteignant la dernière rangée adverse.</li>
-            </ul>
-            <TactileButton theme={currentTheme} onClick={() => setShowGuideAide(false)} style={{width: '100%', justifyContent: 'center', marginTop: '16px'}}>Fermer</TactileButton>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -2269,7 +2066,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         <TactileButton variant="glass" theme={theme} onClick={() => setShowQuitConfirm(true)} style={{padding: '8px 12px'}}><LogOut size={16} /></TactileButton>
         <div style={{textAlign: 'center'}}>
           <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.textDim}}>POT TOTAL</div>
-          <div style={{fontSize: '18px', fontWeight: '900', color: theme.gold}}>{currency === 'USD' ? '$' : 'ETH'}{bet * 2}</div>
+          <div style={{fontSize: '18px', fontWeight: '900', color: theme.gold}}>{bet * 2} $Dames</div>
         </div>
         <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
           <button onClick={() => setSoundEnabled(!soundEnabled)} style={{background: 'none', border: 'none', color: theme.textDim, cursor: 'pointer', display: 'flex', alignItems: 'center'}}>
@@ -2321,22 +2118,20 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         </div>
       )}
 
-      {/* TOP PLAYER (Opponent) — username compact pour laisser place aux points capturés */}
+      {/* TOP PLAYER — nom court + place pour les pièces capturées */}
       <div style={{
         width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px', 
-        marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px',
         border: turn === topColor ? `1px solid ${theme.gold}` : '1px solid transparent',
         opacity: turn === topColor ? 1 : 0.6, transition: 'all 0.3s'
       }}>
-        <div style={{display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1}}>
-          <div style={{width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${topColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
-            {isSpectator ? <Tv size={16} color="#333" /> : (mode === 'solo' ? <Monitor size={16} color="#333" /> : <User size={16} color="#333" />)}
-          </div>
-          <div style={{minWidth: 0, flex: 1}}>
-            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px'}} title={topName}>{topName}</div>
-            {(aiThinking || (isSpectator && !winner)) && <div style={{fontSize: '10px', color: theme.gold}}>Réfléchit...</div>}
-            <CapturedPieces count={topColor === 'red' ? whiteLost : redLost} color={topColor === 'red' ? 'white' : 'red'} theme={theme} />
-          </div>
+        <div style={{width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${topColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
+          {isSpectator ? <Tv size={16} color="#333" /> : (mode === 'solo' ? <Monitor size={16} color="#333" /> : <User size={16} color="#333" />)}
+        </div>
+        <div style={{fontSize: '11px', fontWeight: 'bold', color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '72px', flexShrink: 0}} title={topName}>{topName}</div>
+        {(aiThinking || (isSpectator && !winner)) && <span style={{fontSize: '9px', color: theme.gold}}>...</span>}
+        <div style={{flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center'}}>
+          <CapturedPieces count={topColor === 'red' ? whiteLost : redLost} color={topColor === 'red' ? 'white' : 'red'} theme={theme} />
         </div>
         {timerEnabled ? <PlayerTimer time={topTime} theme={theme} isActive={turn === topColor} /> : <div style={{minWidth: '60px', textAlign: 'center', fontSize: '12px', color: theme.textDim}}>—:—</div>}
       </div>
@@ -2356,7 +2151,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
             <p style={{color: theme.textDim, marginBottom: '20px', fontSize: '14px'}}>
               {isSpectator 
                 ? 'Vous allez retourner au menu principal.' 
-                : `En abandonnant, vous perdez votre mise de ${currency === 'USD' ? '$' : 'ETH'} ${bet}.`
+                : `En abandonnant, vous perdez votre mise de ${bet} $Dames.`
               }
             </p>
             <div style={{display: 'flex', gap: '10px', justifyContent: 'center'}}>
@@ -2450,7 +2245,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
             <p style={{marginTop: '8px', fontSize: '16px'}}>
                {isSpectator 
                  ? 'La partie est terminée.' 
-                 : (winner === 'red' ? `Vous avez gagné ${bet > 0 ? `${currency === 'USD' ? '$' : 'ETH'} ${bet * 2} + ` : ''}50 $Dames !` : 'Meilleure chance la prochaine fois.')
+                 : (winner === 'red' ? `Vous avez gagné ${bet > 0 ? `${bet * 2} $Dames + ` : ''}50 $Dames !` : 'Meilleure chance la prochaine fois.')
                }
             </p>
             <TactileButton theme={theme} onClick={() => onGameOver(winner)} style={{marginTop: '24px'}}>
@@ -2620,38 +2415,38 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         </div>
       </div>
 
-      {/* BOTTOM PLAYER (You) — username compact pour laisser place aux points capturés */}
+      {/* BOTTOM PLAYER — nom court + place pour les pièces capturées */}
       <div style={{
         width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px',
-        marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px',
         border: turn === bottomColor ? `1px solid ${theme.gold}` : '1px solid transparent',
         opacity: turn === bottomColor ? 1 : 0.6, transition: 'all 0.3s'
       }}>
-        <div style={{display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1}}>
-          <div style={{width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${bottomColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
-            <User size={16} color="#000" />
-          </div>
-          <div style={{minWidth: 0, flex: 1}}>
-            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px'}} title={bottomName}>{bottomName}</div>
-            <CapturedPieces count={bottomColor === 'red' ? whiteLost : redLost} color={bottomColor === 'red' ? 'white' : 'red'} theme={theme} />
-          </div>
+        <div style={{width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${bottomColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
+          <User size={16} color="#000" />
+        </div>
+        <div style={{fontSize: '11px', fontWeight: 'bold', color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '72px', flexShrink: 0}} title={bottomName}>{bottomName}</div>
+        <div style={{flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center'}}>
+          <CapturedPieces count={bottomColor === 'red' ? whiteLost : redLost} color={bottomColor === 'red' ? 'white' : 'red'} theme={theme} />
         </div>
         {timerEnabled ? <PlayerTimer time={bottomTime} theme={theme} isActive={turn === bottomColor} /> : <div style={{minWidth: '60px', textAlign: 'center', fontSize: '12px', color: theme.textDim}}>—:—</div>}
       </div>
 
-      {/* Bouton Aide — Guide du jeu */}
+      {/* Bouton Aide — Guide du jeu (police et couleur visibles) */}
       <button
         onClick={() => setShowGuideAide(true)}
         style={{
           width: '100%', maxWidth: '420px', marginTop: '12px', padding: '12px 16px',
-          background: theme.boardLight || 'rgba(197, 160, 89, 0.3)', color: theme.text,
-          border: `1px solid ${theme.gold}60`, borderRadius: '10px',
-          fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
+          background: `linear-gradient(180deg, ${theme.gold} 0%, ${theme.goldDim} 100%)`,
+          color: '#1a1a08',
+          border: `2px solid ${theme.goldDim}`, borderRadius: '10px',
+          fontSize: '16px', fontWeight: 800, cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-          fontFamily: 'cursive'
+          fontFamily: "'Inter', sans-serif",
+          boxShadow: `0 4px 0 ${theme.buttonShadow || '#5c4524'}`
         }}
       >
-        <BookOpen size={18} /> AIDE
+        <BookOpen size={20} /> AIDE
       </button>
 
       {/* Modal Guide Aide (plateau) */}
@@ -2683,8 +2478,8 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
 
 // 5. MAIN APP CONTROLLER
 const App = () => {
-  const [view, setView] = useState<'splash' | 'accueil' | 'login' | 'dashboard' | 'lobby' | 'friend_lobby' | 'game'>('splash');
-  const [initialTab, setInitialTab] = useState<'play' | 'atelier' | 'bonus' | 'amis'>('play');
+  const [view, setView] = useState<'splash' | 'accueil' | 'dashboard' | 'lobby' | 'friend_lobby' | 'game'>('splash');
+  const [initialTab, setInitialTab] = useState<'play' | 'bonus' | 'amis'>('play');
   const [user, setUser] = useState<any>(null);
   const [wallet, setWallet] = useState({ usd: 0, crypto: 0, dames: 500 });
   const [gameConfig, setGameConfig] = useState<any>(null);
@@ -2789,7 +2584,7 @@ const App = () => {
 
   const goToAccueil = () => setView('accueil');
   const goToDashboard = (tab: 'play' | 'atelier' | 'bonus' | 'amis' = 'play') => {
-    setInitialTab(tab);
+    setInitialTab(tab === 'atelier' ? 'play' : tab);
     const tg = (window as any).Telegram?.WebApp;
     const u = tg?.initDataUnsafe?.user;
     if (u && !user) {
@@ -2820,16 +2615,7 @@ const App = () => {
     }
   }, []);
 
-  // Auto-login depuis Telegram Mini App (uniquement sur l'écran login, pas après splash/accueil)
-  useEffect(() => {
-    if (view !== 'login') return;
-    const tg = (window as any).Telegram?.WebApp;
-    const u = tg?.initDataUnsafe?.user;
-    if (u && !user) {
-      const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Joueur';
-      handleLogin('telegram', { id: String(u.id), name, username: u.username });
-    }
-  }, [view]);
+  // Auto-login Telegram déjà géré dans goToDashboard (accueil -> menu)
 
   const handlePlay = (mode: string, bet: number, currency: string, rules: string, difficulty: AIDifficulty = 'medium') => {
     let usedCurrency = currency;
@@ -2918,7 +2704,6 @@ const App = () => {
           theme={currentTheme}
         />
       )}
-      {view === 'login' && <LoginScreen onLogin={handleLogin} theme={currentTheme} />}
       {view === 'dashboard' && (
         <Dashboard
           initialTab={initialTab}
@@ -2928,7 +2713,7 @@ const App = () => {
           history={history}
           onPlay={handlePlay} 
           onSpectate={handleSpectate} 
-          onLogout={() => setView('login')} 
+          onLogout={() => setView('accueil')} 
           currentTheme={currentTheme}
           setTheme={setCurrentTheme}
           currentSkin={currentSkin}
