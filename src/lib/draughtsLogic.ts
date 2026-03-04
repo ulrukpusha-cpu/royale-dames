@@ -59,7 +59,7 @@ function getCapturesForPiece(b: Board, piece: Piece, r: number, c: number): Move
       }
     });
     if (!foundContinuation && currentPath.length > 0) {
-      moves.push({ from: { r, c }, to: currentPath[currentPath.length - 1], captures });
+      moves.push({ from: { r, c }, to: currentPath[currentPath.length - 1], captures: captured });
     }
   };
   search(r, c, b.map(row => [...row]), [], []);

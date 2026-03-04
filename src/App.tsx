@@ -1553,6 +1553,9 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   const [validMoves, setValidMoves] = useState<Move[]>([]);
   
   const [lastMovedPos, setLastMovedPos] = useState<Position | null>(null);
+  const [capturedAnim, setCapturedAnim] = useState<{r: number; c: number; piece: Piece; id: number}[]>([]);
+  const [animatingMove, setAnimatingMove] = useState<{from: Position; to: Position; piece: Piece} | null>(null);
+  const [ghostTarget, setGhostTarget] = useState(false);
   const [winner, setWinner] = useState<'red' | 'white' | 'draw' | null>(null);
   const [aiThinking, setAiThinking] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -1564,18 +1567,8 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   const [redTime, setRedTime] = useState(300);
   const [whiteTime, setWhiteTime] = useState(300);
   
-  // 3D tilt
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const boardContainerRef = useRef<HTMLDivElement>(null);
-
-  const handleBoardMouseMove = (e: React.MouseEvent) => {
-    if (!boardContainerRef.current) return;
-    const rect = boardContainerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left - rect.width / 2;
-    const y = e.clientY - rect.top - rect.height / 2;
-    setTilt({ x: -(y / rect.height) * 12, y: (x / rect.width) * 12 });
-  };
-  const handleBoardMouseLeave = () => setTilt({ x: 0, y: 0 });
+  const [hoveredMoves, setHoveredMoves] = useState<Move[]>([]);
 
   // Sync multiplayer board/turn from props
   useEffect(() => {
@@ -1844,42 +1837,6 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
     } catch (e) { console.error(e); }
   };
 
-  // --- PIECE RENDERER ---
-  const getPieceStyle = (color: 'red' | 'white', isKing: boolean, isSelected: boolean) => {
-     let background = '';
-     let boxShadow = '0 5px 5px rgba(0,0,0,0.4), inset 0 -4px 4px rgba(0,0,0,0.2)';
-     let border = isSelected ? `2px solid ${theme.gold}` : 'none';
-
-     if (skin === 'wood') {
-        background = color === 'red' 
-          ? `radial-gradient(circle at 35% 35%, #8b4513, #3e2723)` // Dark Wood
-          : `radial-gradient(circle at 35% 35%, #deb887, #8b4513)`; // Light Wood
-     } else if (skin === 'marble') {
-        background = color === 'red'
-          ? `radial-gradient(circle at 30% 30%, #e74c3c, #8e44ad)` // Ruby/Onyx
-          : `radial-gradient(circle at 30% 30%, #fff, #bdc3c7)`; // Marble
-     } else if (skin === 'neon') {
-        background = '#222';
-        boxShadow = color === 'red' 
-           ? `0 0 10px ${theme.accent}, inset 0 0 10px ${theme.accent}` 
-           : `0 0 10px #fff, inset 0 0 10px #fff`;
-        border = isSelected ? `2px solid ${theme.gold}` : `2px solid ${color === 'red' ? theme.accent : '#fff'}`;
-     } else {
-        // Classic
-        background = color === 'red' 
-          ? `radial-gradient(circle at 30% 30%, #ff6b6b, #c0392b)` 
-          : `radial-gradient(circle at 30% 30%, #fff, #bdc3c7)`;
-     }
-
-     return {
-       width: '82%', height: '82%', borderRadius: '50%',
-       background, boxShadow, border,
-       display: 'flex', alignItems: 'center', justifyContent: 'center',
-       transform: 'scale(1)', zIndex: 10,
-       transition: 'all 0.2s',
-       position: 'relative' as 'relative'
-     };
-  };
 
   // --- CAPTURED PIECES INDICATOR (Updated for 20 pieces) ---
   const redCount = board.flat().filter(p => p?.color === 'red').length;
@@ -1945,11 +1902,12 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   };
 
   const handleSquareClick = (r: number, c: number) => {
-    if (isPaused) return; 
-    if (isSpectator) return; 
+    if (animatingMove) return;
+    if (isPaused) return;
+    if (isSpectator) return;
     if (winner) return;
     if (isMultiplayer && turn !== multiplayerMyColor) return;
-    if (!isMultiplayer && mode !== 'local' && turn === 'white') return; 
+    if (!isMultiplayer && mode !== 'local' && turn === 'white') return;
 
     const clickedPiece = board[r][c];
 
@@ -1983,34 +1941,12 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   };
 
   const executeMove = (move: Move) => {
-    const newBoard = board.map(row => [...row]);
-    const piece = newBoard[move.from.r][move.from.c]!;
-    
-    // Move
-    newBoard[move.to.r][move.to.c] = piece;
-    newBoard[move.from.r][move.from.c] = null;
+    const movingPiece = board[move.from.r][move.from.c];
+    if (!movingPiece) return;
 
-    // Remove Captures
-    move.captures.forEach(pos => {
-        newBoard[pos.r][pos.c] = null;
-    });
+    const isCapture = move.captures.length > 0;
 
-    let promoted = false;
-    if ((piece.color === 'red' && move.to.r === 0) || (piece.color === 'white' && move.to.r === BOARD_SIZE - 1)) {
-        if (!piece.isKing) {
-            newBoard[move.to.r][move.to.c] = { ...piece, isKing: true };
-            promoted = true;
-        }
-    }
-
-    setBoard(newBoard);
-    setLastMovedPos(move.to);
-    setSelected(null);
-    
-    if (promoted) {
-        playSound('promote');
-        triggerHaptic('promote');
-    } else if (move.captures.length > 0) {
+    if (isCapture) {
         playSound('capture');
         triggerHaptic('capture');
     } else {
@@ -2018,15 +1954,46 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         triggerHaptic('move');
     }
 
-    // Check Win (delayed for sound effect)
-    if (validMoves.length === 0) { // Note: this check needs to run after state update properly or inside effect
-        // Handled by useEffect
-    } else {
-         // Logic handled in useEffect
-    }
+    setAnimatingMove({ from: move.from, to: move.to, piece: movingPiece });
+    requestAnimationFrame(() => setGhostTarget(true));
 
-    // Change turn
-    setTurn(prev => prev === 'red' ? 'white' : 'red');
+    setTimeout(() => {
+      const newBoard = board.map(row => row.map(p => p ? {...p} : null));
+      newBoard[move.to.r][move.to.c] = movingPiece;
+      newBoard[move.from.r][move.from.c] = null;
+
+      if (move.captures.length > 0) {
+        const capAnims = move.captures.map(c => ({
+          r: c.r, c: c.c, piece: board[c.r][c.c], id: Math.random()
+        }));
+        setCapturedAnim(ca => [...ca, ...capAnims]);
+        setTimeout(() => {
+          setCapturedAnim(ca => ca.filter(x => !capAnims.some(y => y.id === x.id)));
+        }, 600);
+      }
+
+      move.captures.forEach(pos => { newBoard[pos.r][pos.c] = null; });
+
+      let promoted = false;
+      if ((movingPiece.color === 'red' && move.to.r === 0) || (movingPiece.color === 'white' && move.to.r === BOARD_SIZE - 1)) {
+        if (!movingPiece.isKing) {
+          newBoard[move.to.r][move.to.c] = { ...movingPiece, isKing: true };
+          promoted = true;
+        }
+      }
+
+      if (promoted) {
+        playSound('promote');
+        triggerHaptic('promote');
+      }
+
+      setBoard(newBoard);
+      setLastMovedPos(move.to);
+      setSelected(null);
+      setAnimatingMove(null);
+      setGhostTarget(false);
+      setTurn(prev => prev === 'red' ? 'white' : 'red');
+    }, 400);
   };
 
   const checkDanger = (b: Board, pos: Position, enemyColor: 'red' | 'white'): boolean => {
@@ -2069,6 +2036,8 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   useEffect(() => {
     if (isPaused) return;
 
+    if (animatingMove) return;
+
     if ((isSpectator && !winner) || (mode === 'solo' && turn === 'white' && !winner) || ((mode === 'multi' || mode === 'friend') && !isMultiplayer && turn === 'white' && !winner)) {
        
        if (validMoves.length === 0) return;
@@ -2084,7 +2053,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
 
        return () => clearTimeout(timer);
     }
-  }, [turn, mode, winner, isSpectator, isPaused, validMoves]); 
+  }, [turn, mode, winner, isSpectator, isPaused, validMoves, animatingMove]); 
   
   // Trigger Win/Loss Sound when winner state changes
   useEffect(() => {
@@ -2101,8 +2070,65 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
     ? "Match en direct" 
     : (mode === 'solo' ? aiName : (mode === 'friend' ? "Ami Invité" : (mode === 'local' ? "Joueur 2" : "Adversaire en ligne")));
 
+  const isFlipped = isMultiplayer && multiplayerMyColor === 'white';
+  const topColor: 'red' | 'white' = isFlipped ? 'red' : 'white';
+  const bottomColor: 'red' | 'white' = isFlipped ? 'white' : 'red';
+  const topTime = isFlipped ? redTime : whiteTime;
+  const bottomTime = isFlipped ? whiteTime : redTime;
+  const topName = isSpectator ? 'Match en direct' : opponentName;
+  const bottomName = isSpectator ? 'SPECTATEUR' : user.name;
+
+  const handlePieceHover = (r: number, c: number) => {
+    if (isSpectator || winner || aiThinking || isPaused) return;
+    if (isMultiplayer && turn !== multiplayerMyColor) return;
+    if (mode === 'solo' && turn === 'white') return;
+    const p = board[r][c];
+    if (p && p.color === turn) {
+      const moves = getAllLegalMoves(board, turn).filter(m => m.from.r === r && m.from.c === c);
+      setHoveredMoves(moves);
+    } else {
+      setHoveredMoves([]);
+    }
+  };
+
+  const getPieceStyle = (color: string, isKing: boolean, isSelected: boolean): React.CSSProperties => {
+    const isRed = color === 'red';
+    const shadowY = isFlipped ? -4 : 4;
+    const shadowYSel = isFlipped ? -15 : 15;
+    const lightPos = isFlipped ? '70% 70%' : '30% 30%';
+    const base: React.CSSProperties = {
+      width: '75%', height: '75%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s',
+      transform: isSelected ? 'translateZ(10px) scale(1.1)' : 'translateZ(2px)',
+      zIndex: isSelected ? 20 : 5, transformStyle: 'preserve-3d',
+      animation: isSelected ? 'float-piece 2s ease-in-out infinite' : 'none',
+    };
+    if (skin === 'wood') {
+      const bc = isRed ? '#4a332a' : '#e6d5ac';
+      const rc = isRed ? '#2b1d16' : '#c5a059';
+      base.background = `radial-gradient(circle at ${lightPos}, rgba(255,255,255,0.15) 0%, rgba(0,0,0,0) 25%), repeating-radial-gradient(circle at 50% 50%, ${bc} 0px, ${bc} 2px, ${rc} 3px, ${rc} 4px)`;
+      base.border = `1px solid ${isRed ? '#1a120b' : '#a68e74'}`;
+      base.boxShadow = isSelected ? `0 ${shadowYSel}px 15px rgba(0,0,0,0.5), inset 0 0 10px rgba(0,0,0,0.5)` : `0 ${shadowY}px 4px rgba(0,0,0,0.4), inset 0 0 5px rgba(0,0,0,0.3)`;
+    } else if (skin === 'marble') {
+      const bc = isRed ? '#333' : '#f0f0f0';
+      const vc = isRed ? '#111' : '#ccc';
+      base.background = `radial-gradient(circle at ${lightPos}, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 20%), radial-gradient(circle at 50% 50%, ${bc}, ${vc})`;
+      base.border = `1px solid ${isRed ? '#000' : '#fff'}`;
+      base.boxShadow = isSelected ? `0 ${shadowYSel}px 20px rgba(0,0,0,0.6), inset 2px 2px 10px rgba(255,255,255,0.2)` : `0 ${shadowY}px 6px rgba(0,0,0,0.5), inset 2px 2px 5px rgba(255,255,255,0.3)`;
+    } else if (skin === 'neon') {
+      const nc = isRed ? (theme.danger || '#e74c3c') : theme.gold;
+      base.background = '#000';
+      base.border = `2px solid ${nc}`;
+      base.boxShadow = isSelected ? `0 0 20px ${nc}, inset 0 0 10px ${nc}` : `0 0 10px ${nc}, inset 0 0 5px ${nc}`;
+    } else {
+      base.background = isRed ? `radial-gradient(circle at ${lightPos}, #e74c3c, #c0392b)` : `radial-gradient(circle at ${lightPos}, #ecf0f1, #bdc3c7)`;
+      base.boxShadow = isSelected ? `0 ${shadowYSel * 0.6}px 10px rgba(0,0,0,0.4)` : `0 ${shadowY * 0.5}px 3px rgba(0,0,0,0.3)`;
+    }
+    return base;
+  };
+
   return (
-    <div style={s.main}>
+    <div style={{...s.main, justifyContent: 'flex-start', perspective: '1200px'}}>
        <style>
          {`
            @keyframes pulse-gold {
@@ -2124,48 +2150,41 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
              50% { filter: brightness(1.25); box-shadow: 0 0 8px rgba(255,215,0,0.4); }
              100% { filter: brightness(1); box-shadow: 0 0 0 rgba(255,215,0,0); }
            }
+           @keyframes pulse-dot { 0% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 0.6; } }
+           @keyframes float-piece { 0%, 100% { transform: translateZ(10px) scale(1.1); } 50% { transform: translateZ(14px) scale(1.1); } }
+           @keyframes jump-arc { 0% { transform: translateZ(2px); } 50% { transform: translateZ(60px) scale(1.1); } 100% { transform: translateZ(2px); } }
+           @keyframes vanish-piece { 0% { transform: translateZ(2px) scale(1); opacity: 1; } 50% { transform: translateZ(20px) scale(1.2) rotate(15deg); opacity: 0.8; } 100% { transform: translateZ(5px) scale(0); opacity: 0; } }
          `}
        </style>
 
-      {/* HUD */}
-      <div style={{width: '100%', maxWidth: '600px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px'}}>
-        <div style={{textAlign: 'left'}}>
-          <div style={{color: turn === 'red' ? theme.accent : theme.text, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px'}}>
-             {isSpectator && <Eye size={14} color={theme.gold} />}
-             {isSpectator 
-               ? (turn === 'red' ? 'Tour des Rouges' : 'Tour des Blancs')
-               : (mode === 'local' 
-                    ? (turn === 'red' ? 'Tour Joueur 1 (Rouge)' : 'Tour Joueur 2 (Blanc)') 
-                    : (turn === 'red' ? 'Votre Tour' : 'Attente...'))
-             }
-          </div>
-          <div style={{fontSize: '18px', fontFamily: theme.fontMain, color: theme.text}}>
-             {isSpectator ? 'SPECTATEUR' : user.name}
-          </div>
-          {/* PLAYER CAPTURED PIECES (Pieces I captured from white) */}
-          <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px'}}>
-             <span style={{fontSize: '9px', color: theme.textDim, textTransform: 'uppercase'}}>Capturés:</span>
-             <CapturedPieces color="white" count={whiteLost} theme={theme} />
-          </div>
+      {/* HUD BAR */}
+      <div style={{width: '100%', maxWidth: '420px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0'}}>
+        <TactileButton variant="glass" theme={theme} onClick={() => setShowQuitConfirm(true)} style={{padding: '8px 12px'}}><LogOut size={16} /></TactileButton>
+        <div style={{textAlign: 'center'}}>
+          <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.textDim}}>POT TOTAL</div>
+          <div style={{fontSize: '18px', fontWeight: '900', color: theme.gold}}>{currency === 'USD' ? '$' : 'ETH'}{bet * 2}</div>
         </div>
-        <div style={{textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end'}}>
-          <div style={{color: theme.textDim, fontSize: '10px'}}>POT ACTUEL</div>
-          <div style={{fontSize: '18px', color: theme.gold, fontFamily: theme.fontMain}}>
-            {currency === 'USD' ? '$' : 'ETH'} {bet * 2}
-          </div>
-          <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px'}}>
-            <button onClick={() => setSoundEnabled(!soundEnabled)} style={{background: 'none', border: 'none', color: theme.textDim, cursor: 'pointer', display: 'flex', alignItems: 'center'}}>
-               {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+          <button onClick={() => setSoundEnabled(!soundEnabled)} style={{background: 'none', border: 'none', color: theme.textDim, cursor: 'pointer', display: 'flex', alignItems: 'center'}}>
+            {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+          </button>
+          {!winner && (
+            <button onClick={() => setIsPaused(true)} style={{background: 'none', border: 'none', color: theme.gold, cursor: 'pointer', display: 'flex', alignItems: 'center'}}>
+              <Pause size={12} />
             </button>
-            
-            {!winner && (
-              <button onClick={() => setIsPaused(true)} style={{background: 'none', border: 'none', color: theme.gold, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', marginLeft: '8px', fontWeight: 'bold'}}>
-                <Pause size={12} /> PAUSE
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
+
+      {isSpectator && (
+        <div style={{
+          background: theme.danger, color: '#fff', width: '100%', maxWidth: '420px',
+          padding: '4px', textAlign: 'center', fontSize: '10px', fontWeight: 'bold',
+          borderRadius: '4px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+        }}>
+          <Eye size={12} /> MODE SPECTATEUR (EN DIRECT)
+        </div>
+      )}
 
       {/* PAUSE OVERLAY */}
       {isPaused && (
@@ -2199,20 +2218,20 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
       <div style={{
         width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px', 
         marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        border: turn === 'white' ? `1px solid ${theme.gold}` : '1px solid transparent',
-        opacity: turn === 'white' ? 1 : 0.6, transition: 'all 0.3s'
+        border: turn === topColor ? `1px solid ${theme.gold}` : '1px solid transparent',
+        opacity: turn === topColor ? 1 : 0.6, transition: 'all 0.3s'
       }}>
         <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-          <div style={{width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid #ecf0f1`}}>
-            {isSpectator ? <Tv size={16} color={theme.textDim} /> : (mode === 'solo' ? <Monitor size={16} color={theme.textDim} /> : <User size={16} color={theme.textDim} />)}
+          <div style={{width: '32px', height: '32px', borderRadius: '50%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${topColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
+            {isSpectator ? <Tv size={16} color="#333" /> : (mode === 'solo' ? <Monitor size={16} color="#333" /> : <User size={16} color="#333" />)}
           </div>
           <div>
-            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text}}>{opponentName}</div>
+            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text}}>{topName}</div>
             {(aiThinking || (isSpectator && !winner)) && <div style={{fontSize: '10px', color: theme.gold}}>Réfléchit...</div>}
-            <CapturedPieces count={redLost} color="red" theme={theme} />
+            <CapturedPieces count={topColor === 'red' ? whiteLost : redLost} color={topColor === 'red' ? 'white' : 'red'} theme={theme} />
           </div>
         </div>
-        <PlayerTimer time={whiteTime} theme={theme} isActive={turn === 'white'} />
+        <PlayerTimer time={topTime} theme={theme} isActive={turn === topColor} />
       </div>
 
       {/* EXIT/QUIT CONFIRMATION MODAL */}
@@ -2345,124 +2364,172 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         </div>
       )}
 
-      {/* BOARD - Flip 180° for white player so they see their pieces at bottom */}
-      {(() => {
-        const flip = isMultiplayer && multiplayerMyColor === 'white';
-        const rowIndices = flip ? [...Array(BOARD_SIZE)].map((_, i) => BOARD_SIZE - 1 - i) : [...Array(BOARD_SIZE)].map((_, i) => i);
-        const colIndices = flip ? [...Array(BOARD_SIZE)].map((_, i) => BOARD_SIZE - 1 - i) : [...Array(BOARD_SIZE)].map((_, i) => i);
-        return (
+      {/* 3D BOARD WRAPPER */}
       <div 
         ref={boardContainerRef}
-        onMouseMove={handleBoardMouseMove}
-        onMouseLeave={handleBoardMouseLeave}
-        style={{ perspective: '800px', transformStyle: 'preserve-3d' }}
+        style={{
+          width: '100%', maxWidth: '420px', aspectRatio: '1/1',
+          position: 'relative', transformStyle: 'preserve-3d',
+          transform: `rotateX(25deg) rotateZ(${isFlipped ? 180 : 0}deg) scale(0.9)`,
+          marginTop: '10px', marginBottom: '20px',
+          transition: 'transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1)',
+          cursor: 'default'
+        }}
       >
-      <div style={{
-        position: 'relative',
-        width: 'min(90vw, 500px)',
-        height: 'min(90vw, 500px)',
-        border: `8px solid #2d1b12`,
-        borderRadius: '6px',
-        boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
-        display: 'grid',
-        gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)`,
-        gridTemplateRows: `repeat(${BOARD_SIZE}, 1fr)`,
-        background: theme.boardLight,
-        transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-        transition: 'transform 0.15s ease-out',
-        transformStyle: 'preserve-3d'
-      }}>
-        {/* Board Border Detail */}
-        <div style={{position: 'absolute', top: '-6px', left: '-6px', right: '-6px', bottom: '-6px', border: '1px solid rgba(255,255,255,0.1)', pointerEvents: 'none', borderRadius: '4px'}}></div>
+        {/* Board Base/Thickness with Bevel */}
+        <div style={{
+          position: 'absolute', inset: -12,
+          background: 'linear-gradient(to bottom, #3e2723, #1a120b)',
+          transform: 'translateZ(-15px)',
+          boxShadow: '0 40px 60px rgba(0,0,0,0.7), 0 10px 20px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.8)',
+          borderRadius: '16px', border: `1px solid ${theme.gold}40`
+        }}>
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: '16px',
+            border: `4px solid ${theme.gold}`,
+            boxShadow: 'inset 2px 2px 5px rgba(255,255,255,0.2), inset -2px -2px 5px rgba(0,0,0,0.5)',
+            opacity: 0.8
+          }} />
+        </div>
 
-        {rowIndices.map(r => colIndices.map(c => {
-          const piece = board[r][c];
-          const isDark = (r + c) % 2 === 1;
-          const isSelected = selected?.r === r && selected?.c === c;
-          
-          // Check if this square is a target for any valid move from selected piece
-          const isTarget = selected && validMoves.some(m => m.from.r === selected.r && m.from.c === selected.c && m.to.r === r && m.to.c === c);
-          
-          // Check if piece can be selected (it is in the validMoves list as a start position)
-          const canSelect = piece?.color === turn && validMoves.some(m => m.from.r === r && m.from.c === c);
+        {/* Grid Surface */}
+        <div style={{
+          width: '100%', height: '100%', background: theme.boardDark,
+          backgroundImage: theme.boardTexture, borderRadius: '8px',
+          display: 'grid',
+          gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)`,
+          gridTemplateRows: `repeat(${BOARD_SIZE}, 1fr)`,
+          transformStyle: 'preserve-3d',
+          boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)',
+          position: 'relative'
+        }}>
+          {/* COORDINATES */}
+          {Array.from({length: BOARD_SIZE}).map((_, i) => (
+            <React.Fragment key={`coord-${i}`}>
+              <div style={{position: 'absolute', top: '-18px', left: `${i * 10}%`, width: '10%', textAlign: 'center', fontSize: '10px', fontWeight: 'bold', color: theme.textDim, transform: isFlipped ? 'rotateZ(180deg)' : 'none'}}>{['A','B','C','D','E','F','G','H','I','J'][i]}</div>
+              <div style={{position: 'absolute', bottom: '-18px', left: `${i * 10}%`, width: '10%', textAlign: 'center', fontSize: '10px', fontWeight: 'bold', color: theme.textDim, transform: isFlipped ? 'rotateZ(180deg)' : 'none'}}>{['A','B','C','D','E','F','G','H','I','J'][i]}</div>
+              <div style={{position: 'absolute', left: '-18px', top: `${i * 10}%`, height: '10%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold', color: theme.textDim, transform: isFlipped ? 'rotateZ(180deg)' : 'none'}}>{i + 1}</div>
+              <div style={{position: 'absolute', right: '-18px', top: `${i * 10}%`, height: '10%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold', color: theme.textDim, transform: isFlipped ? 'rotateZ(180deg)' : 'none'}}>{i + 1}</div>
+            </React.Fragment>
+          ))}
 
-          const isLastMove = lastMovedPos?.r === r && lastMovedPos?.c === c;
-          
-          return (
-            <div 
-              key={`${r}-${c}`}
-              onClick={() => handleSquareClick(r, c)}
-              style={{
-                width: '100%',
-                height: '100%',
-                backgroundColor: isDark ? theme.boardDark : theme.boardLight,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                cursor: (canSelect || isTarget) && !isSpectator ? 'pointer' : 'default',
-                boxShadow: isTarget ? `inset 0 0 15px ${theme.gold}` : 'none'
-              }}
-            >
-               {/* Wood grain texture overlay for dark squares if tabac theme */}
-               {isDark && theme.id === 'tabac' && <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0.1, backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 5px, #000 5px, #000 6px)'}} />}
+          {board.map((row, r) => row.map((piece, c) => {
+            const isDark = (r + c) % 2 === 1;
+            const isSelected = selected?.r === r && selected?.c === c;
+            const isTarget = selected && validMoves.some(m => m.from.r === selected.r && m.from.c === selected.c && m.to.r === r && m.to.c === c);
+            const isHoverMove = hoveredMoves.some(m => m.to.r === r && m.to.c === c);
+            const canSelect = piece?.color === turn && validMoves.some(m => m.from.r === r && m.from.c === c);
+            const isLastMove = lastMovedPos?.r === r && lastMovedPos?.c === c;
+            const isBeingAnimated = animatingMove && animatingMove.from.r === r && animatingMove.from.c === c;
 
-              {/* Highlight Valid Move Dot */}
-              {isTarget && !piece && (
-                <div style={{
-                  width: '24%', height: '24%', borderRadius: '50%', background: `rgba(${parseInt(theme.gold.slice(1,3),16)}, ${parseInt(theme.gold.slice(3,5),16)}, ${parseInt(theme.gold.slice(5,7),16)}, 0.5)`,
-                  boxShadow: `0 0 10px ${theme.gold}`,
-                  animation: 'fade-in-dot 0.3s ease-out'
-                }} />
-              )}
-
-              {/* PIECE */}
-              {piece && (
-                <div style={{
-                  ...getPieceStyle(piece.color, piece.isKing, isSelected),
-                  animation: isSelected 
-                    ? 'pulse-gold 1.5s infinite' 
-                    : (canSelect && !isSpectator
-                        ? 'breathe-glow 2.5s infinite ease-in-out' // Subtle animation for movable pieces
-                        : (isLastMove 
-                            ? 'land-piece 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)' 
-                            : 'none'))
-                }}>
-                  {/* King Crown or Detail */}
+            return (
+              <div
+                key={`${r}-${c}`}
+                onClick={() => handleSquareClick(r, c)}
+                onMouseEnter={() => handlePieceHover(r, c)}
+                onMouseLeave={() => setHoveredMoves([])}
+                style={{
+                  width: '100%', height: '100%',
+                  background: isDark ? 'rgba(0,0,0,0.2)' : theme.boardLight,
+                  backgroundImage: isDark ? 'none' : 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0.05) 100%)',
+                  position: 'relative',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transformStyle: 'preserve-3d',
+                  boxShadow: isDark
+                    ? 'inset 3px 3px 8px rgba(0,0,0,0.6), inset -1px -1px 4px rgba(255,255,255,0.05)'
+                    : 'inset 1px 1px 0px rgba(255,255,255,0.6), inset -1px -1px 2px rgba(0,0,0,0.1)',
+                  borderRadius: '2px',
+                  cursor: (canSelect || isTarget) && !isSpectator ? 'pointer' : 'default'
+                }}
+              >
+                {isTarget && !piece && (
                   <div style={{
-                    width: '60%', height: '60%', borderRadius: '50%', 
-                    border: skin === 'neon' ? '1px solid rgba(255,255,255,0.5)' : `1px solid rgba(0,0,0,0.15)`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    width: '30%', height: '30%', borderRadius: '50%',
+                    background: theme.success,
+                    boxShadow: `0 0 10px ${theme.success}`,
+                    animation: 'pulse-dot 1.5s infinite ease-in-out',
+                    transform: 'translateZ(1px)'
+                  }} />
+                )}
+                {isHoverMove && !isTarget && !isSpectator && (
+                  <div style={{
+                    width: '20%', height: '20%', borderRadius: '50%',
+                    background: theme.gold, opacity: 0.6,
+                    boxShadow: `0 0 8px ${theme.gold}`,
+                    transform: 'translateZ(1px)'
+                  }} />
+                )}
+                {piece && !isBeingAnimated && (
+                  <div style={{
+                    ...getPieceStyle(piece.color, piece.isKing, isSelected),
+                    animation: isSelected
+                      ? 'float-piece 2s ease-in-out infinite'
+                      : (canSelect && !isSpectator
+                          ? 'breathe-glow 2.5s infinite ease-in-out'
+                          : (isLastMove ? 'land-piece 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)' : 'none'))
                   }}>
-                    {piece.isKing && <div style={{fontSize: '18px', color: skin === 'neon' ? '#fff' : (piece.color === 'red' ? '#5a1a1a' : '#888')}}>♛</div>}
+                    {piece.isKing && <Crown size={14} color={piece.color === 'red' ? '#fff' : '#333'} style={{filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))', transform: isFlipped ? 'rotateZ(180deg)' : 'none'}} />}
                   </div>
+                )}
+              </div>
+            );
+          }))}
+
+          {/* CAPTURED PIECES ANIMATION */}
+          {capturedAnim.map((ca) => (
+            <div key={ca.id} style={{
+              left: `${ca.c * 10}%`, top: `${ca.r * 10}%`,
+              position: 'absolute', pointerEvents: 'none', zIndex: 50,
+              width: '10%', height: '10%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: 'vanish-piece 0.6s ease-out forwards',
+              transformStyle: 'preserve-3d'
+            }}>
+              {ca.piece && (
+                <div style={getPieceStyle(ca.piece.color, ca.piece.isKing, false)}>
+                  {ca.piece.isKing && <Crown size={14} color={ca.piece.color === 'red' ? '#fff' : '#333'} style={{transform: isFlipped ? 'rotateZ(180deg)' : 'none'}} />}
                 </div>
               )}
             </div>
-          );
-        }))}
+          ))}
+
+          {/* Ghost Piece for Jump Animation */}
+          {animatingMove && (
+            <div style={{
+              position: 'absolute', top: 0, left: 0,
+              width: `${100/BOARD_SIZE}%`, height: `${100/BOARD_SIZE}%`,
+              transform: `translate3d(${(ghostTarget ? animatingMove.to.c : animatingMove.from.c) * 100}%, ${(ghostTarget ? animatingMove.to.r : animatingMove.from.r) * 100}%, 0)`,
+              transition: 'transform 0.4s ease-in-out',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              pointerEvents: 'none', zIndex: 100, transformStyle: 'preserve-3d'
+            }}>
+              <div style={{ animation: 'jump-arc 0.4s ease-in-out forwards', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', transformStyle: 'preserve-3d' }}>
+                <div style={getPieceStyle(animatingMove.piece.color, animatingMove.piece.isKing, true)}>
+                  {animatingMove.piece.isKing && <Crown size={14} color={animatingMove.piece.color === 'red' ? '#fff' : '#333'} style={{transform: isFlipped ? 'rotateZ(180deg)' : 'none'}} />}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-      </div>
-        );
-      })()}
 
       {/* BOTTOM PLAYER (You) */}
       <div style={{
-        width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px', 
+        width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px',
         marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        border: turn === 'red' ? `1px solid ${theme.gold}` : '1px solid transparent',
-        opacity: turn === 'red' ? 1 : 0.6, transition: 'all 0.3s'
+        border: turn === bottomColor ? `1px solid ${theme.gold}` : '1px solid transparent',
+        opacity: turn === bottomColor ? 1 : 0.6, transition: 'all 0.3s'
       }}>
         <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-          <div style={{width: '32px', height: '32px', borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #c0392b'}}>
+          <div style={{width: '32px', height: '32px', borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${bottomColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
             <User size={16} color="#000" />
           </div>
           <div>
-            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text}}>{isSpectator ? 'SPECTATEUR' : user.name}</div>
-            <CapturedPieces count={whiteLost} color="white" theme={theme} />
+            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text}}>{bottomName}</div>
+            <CapturedPieces count={bottomColor === 'red' ? whiteLost : redLost} color={bottomColor === 'red' ? 'white' : 'red'} theme={theme} />
           </div>
         </div>
-        <PlayerTimer time={redTime} theme={theme} isActive={turn === 'red'} />
+        <PlayerTimer time={bottomTime} theme={theme} isActive={turn === bottomColor} />
       </div>
 
     </div>
