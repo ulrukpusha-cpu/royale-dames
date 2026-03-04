@@ -391,6 +391,98 @@ const RuleButton = ({ label, value, isSelected, onClick, theme }: any) => {
 
 // --- COMPONENTS ---
 
+// 0. SPLASH SCREEN — GIF + barre de chargement 0–100% en 8 secondes
+const SplashScreen = ({ onComplete, theme }: { onComplete: () => void; theme: any }) => {
+  const [progress, setProgress] = useState(0);
+  const [imgError, setImgError] = useState(false);
+  const s = getStyles(theme);
+
+  useEffect(() => {
+    const duration = 8000; // 8 secondes
+    const start = Date.now();
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const p = Math.min(100, (elapsed / duration) * 100);
+      setProgress(p);
+      if (p >= 100) {
+        onComplete();
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    const id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [onComplete]);
+
+  return (
+    <div style={{ ...s.container, ...s.main, justifyContent: 'center', background: '#0a0a0a' }}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ width: '100%', aspectRatio: 1, maxWidth: 280, marginBottom: 24, borderRadius: '50%', overflow: 'hidden', boxShadow: `0 0 40px ${theme.gold}40` }}>
+          {!imgError ? (
+            <img
+              src="/splash.gif"
+              alt="Dame Tabac"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={() => setImgError(true)}
+            />
+          ) : null}
+          {imgError && (
+            <div style={{ width: '100%', height: '100%', background: theme.bgGradient, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Trophy size={80} color={theme.gold} />
+            </div>
+          )}
+        </div>
+        <div style={{ width: '100%', height: 8, background: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+          <div
+            style={{
+              width: `${progress}%`,
+              height: '100%',
+              background: `linear-gradient(90deg, ${theme.goldDim}, ${theme.gold})`,
+              borderRadius: 4,
+              transition: 'width 0.15s linear',
+            }}
+          />
+        </div>
+        <span style={{ fontSize: 12, color: theme.textDim, fontWeight: 600 }}>{Math.round(progress)}%</span>
+      </div>
+    </div>
+  );
+};
+
+// 0.5 PAGE D'ACCUEIL — Menu et Atelier (sans Google/Telegram)
+const AccueilScreen = ({ onMenu, onAtelier, theme }: { onMenu: () => void; onAtelier: () => void; theme: any }) => {
+  const s = getStyles(theme);
+  return (
+    <div style={s.main}>
+      <div style={{ ...s.panel, animation: 'fadeIn 0.6s ease-out' }}>
+        <div style={{
+          width: '70px', height: '70px', margin: '0 auto 16px',
+          background: `radial-gradient(circle at 30% 30%, ${theme.gold}, ${theme.goldDim})`,
+          borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 0 30px ${theme.goldDim}`
+        }}>
+          <Trophy size={32} color="#2a1a08" />
+        </div>
+        <h1 style={{ ...s.logo, fontSize: '28px', marginBottom: '6px' }}>ROYAL DAMES</h1>
+        <p style={{ color: theme.textDim, marginBottom: '32px', fontSize: '12px', letterSpacing: '0.5px' }}>LE CERCLE DES STRATÈGES</p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <TactileButton theme={theme} onClick={onMenu} style={{ width: '100%' }}>
+            MENU
+          </TactileButton>
+          <TactileButton theme={theme} onClick={onAtelier} style={{ width: '100%' }}>
+            ATELIER
+          </TactileButton>
+        </div>
+
+        <div style={{ marginTop: '24px', fontSize: '10px', color: theme.textDim, opacity: 0.7 }}>
+          En entrant, vous acceptez les règles du club et la politique de jeu responsable.
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // 1. LOGIN SCREEN — Connexion Google et Telegram fonctionnelle
 const LoginScreen = ({ onLogin, theme }: any) => {
   const s = getStyles(theme);
@@ -523,14 +615,16 @@ const DepositModal = ({ theme, onClose, onSuccess }: any) => {
   );
 };
 
-const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin, friends = [], addFriend, removeFriend, onlineFriends = [], invitePlayer, isConnectedMultiplayer = false, spectatableGames = [], requestSpectatableGames, spectateGame, onSpectateFriendMatch, onSpectateDemo, onJoinRoom }: any) => {
+const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin, friends = [], addFriend, removeFriend, onlineFriends = [], invitePlayer, isConnectedMultiplayer = false, spectatableGames = [], requestSpectatableGames, spectateGame, onSpectateFriendMatch, onSpectateDemo, onJoinRoom, timerEnabled, setTimerEnabled, timerSeconds, setTimerSeconds }: any) => {
   const [tonConnectUI] = useTonConnectUI();
   const tonAddress = useTonAddress();
   const [currency, setCurrency] = useState<'USD' | 'ETH'>('USD');
   const [betAmount, setBetAmount] = useState(10);
   const [rules, setRules] = useState<'standard' | 'international'>('international'); 
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
-  const [tab, setTab] = useState<'play' | 'atelier' | 'bonus' | 'historique' | 'coffre' | 'amis'>('play');
+  const [tab, setTab] = useState<'play' | 'atelier' | 'bonus' | 'historique' | 'coffre' | 'amis'>(initialTab);
+  const [balanceMode, setBalanceMode] = useState<'TON' | 'DAMES' | 'Fiat'>('TON');
+  const [showGuideAide, setShowGuideAide] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showTonBetting, setShowTonBetting] = useState(false);
   const [connectedWallets, setConnectedWallets] = useState<{ metamask?: string; ton?: string }>({});
@@ -540,6 +634,10 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
   const [showDepositModal, setShowDepositModal] = useState(false);
   
   const [pendingChange, setPendingChange] = useState<{ type: 'theme' | 'skin', value: any } | null>(null);
+
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
 
   const handleOpenSpectateModal = () => {
     setShowSpectateModal(true);
@@ -634,6 +732,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
           {[
             {id: 'play', icon: <Play size={14} />, label: 'Jeu'},
             {id: 'bonus', icon: <Crown size={14} />, label: 'Bonus'},
+            {id: 'amis', icon: <Users size={14} />, label: 'Amis'},
             {id: 'atelier', icon: <Palette size={14} />, label: 'Atelier'},
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id as any)} style={{
@@ -649,31 +748,73 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
 
         {tab === 'play' && (
           <div style={{animation: 'fadeIn 0.3s'}}>
-            {/* Solde Disponible */}
+            {/* Solde Disponible — TON / $Dames / Fiat */}
             <div style={{background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '16px', marginBottom: '16px', border: `1px solid ${currentTheme.textDim}10`}}>
-              <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '6px'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
                 <span style={{color: currentTheme.textDim, fontSize: '10px', textTransform: 'uppercase'}}>Solde Disponible</span>
               </div>
-              <div style={{fontSize: '28px', fontWeight: '900', fontFamily: currentTheme.fontMain, color: currentTheme.text, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px'}}>
-                ${wallet.usd.toLocaleString()}
+              <div style={{display: 'flex', gap: '6px', marginBottom: '12px'}}>
+                {(['TON', 'DAMES', 'Fiat'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => setBalanceMode(mode === 'DAMES' ? 'DAMES' : mode === 'Fiat' ? 'Fiat' : 'TON')}
+                    style={{
+                      flex: 1, padding: '6px 8px', borderRadius: '10px', border: 'none',
+                      background: balanceMode === mode ? currentTheme.gold : 'rgba(0,0,0,0.3)',
+                      color: balanceMode === mode ? '#2a1a08' : currentTheme.textDim,
+                      fontWeight: 'bold', fontSize: '10px', cursor: 'pointer', textTransform: 'uppercase',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {mode === 'DAMES' ? '$Dames' : mode}
+                  </button>
+                ))}
               </div>
-              <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
-                <div style={{padding: '3px 10px', borderRadius: '20px', background: `${currentTheme.gold}20`, color: currentTheme.gold, fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                  <Crown size={12} /> {wallet.dames?.toLocaleString() ?? 0} $Dames
-                </div>
-              </div>
-
-              <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px'}}>
-                <TactileButton theme={currentTheme} onClick={() => setShowDepositModal(true)} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px', background: `linear-gradient(135deg, ${currentTheme.success || '#27ae60'} 0%, ${(currentTheme.success || '#27ae60')}dd 100%)`, boxShadow: '0 4px 0 rgba(0,0,0,0.2)'}}>
-                  <Plus size={16} /> <span>RECHARGER</span>
-                </TactileButton>
-                <TactileButton variant="secondary" theme={currentTheme} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px'}}>
-                  <ArrowUpRight size={16} /> <span>RETRAIT</span>
-                </TactileButton>
-                <TactileButton variant="secondary" theme={currentTheme} onClick={() => setShowWalletModal(true)} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px'}}>
-                  <Wallet size={16} /> <span>WALLET</span>
-                </TactileButton>
-              </div>
+              {balanceMode === 'TON' && (
+                <>
+                  <div style={{fontSize: '24px', fontWeight: '900', fontFamily: currentTheme.fontMain, color: currentTheme.text, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
+                    <Crown size={20} /> {wallet.crypto?.toLocaleString() ?? 0} TON
+                  </div>
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px'}}>
+                    <TactileButton theme={currentTheme} onClick={() => { setShowWalletModal(true); }} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px', background: `linear-gradient(135deg, ${currentTheme.success || '#27ae60'} 0%, ${(currentTheme.success || '#27ae60')}dd 100%)`, boxShadow: '0 4px 0 rgba(0,0,0,0.2)'}}>
+                      <Plus size={16} /> <span>RECHARGER</span>
+                    </TactileButton>
+                    <TactileButton variant="secondary" theme={currentTheme} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px'}}>
+                      <ArrowUpRight size={16} /> <span>RETRAIT</span>
+                    </TactileButton>
+                    <TactileButton variant="secondary" theme={currentTheme} onClick={() => setShowWalletModal(true)} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px'}}>
+                      <Wallet size={16} /> <span>WALLET</span>
+                    </TactileButton>
+                  </div>
+                </>
+              )}
+              {balanceMode === 'DAMES' && (
+                <>
+                  <div style={{fontSize: '24px', fontWeight: '900', fontFamily: currentTheme.fontMain, color: currentTheme.text, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
+                    <Crown size={20} /> {wallet.dames?.toLocaleString() ?? 0} $Dames
+                  </div>
+                  <div style={{display: 'flex', gap: '8px'}}>
+                    <TactileButton theme={currentTheme} style={{flex: 1, flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '10px', height: 'auto', minHeight: '60px'}}>
+                      <span>CONVERTIR</span>
+                    </TactileButton>
+                  </div>
+                </>
+              )}
+              {balanceMode === 'Fiat' && (
+                <>
+                  <div style={{fontSize: '24px', fontWeight: '900', fontFamily: currentTheme.fontMain, color: currentTheme.text, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
+                    ${wallet.usd.toLocaleString()} XOF
+                  </div>
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px'}}>
+                    <TactileButton theme={currentTheme} onClick={() => setShowDepositModal(true)} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px', background: `linear-gradient(135deg, ${currentTheme.success || '#27ae60'} 0%, ${(currentTheme.success || '#27ae60')}dd 100%)`, boxShadow: '0 4px 0 rgba(0,0,0,0.2)'}}>
+                      <Plus size={16} /> <span>RECHARGER</span>
+                    </TactileButton>
+                    <TactileButton variant="secondary" theme={currentTheme} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px'}}>
+                      <ArrowUpRight size={16} /> <span>RETRAIT</span>
+                    </TactileButton>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Mise */}
@@ -717,6 +858,10 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
 
             <TactileButton variant="secondary" theme={currentTheme} onClick={handleOpenSpectateModal} style={{width: '100%', padding: '12px', color: currentTheme.gold}}>
               <Eye size={16} /> <span>REGARDER UNE PARTIE (LIVE)</span>
+            </TactileButton>
+
+            <TactileButton variant="secondary" theme={currentTheme} onClick={() => setShowGuideAide(true)} style={{width: '100%', marginTop: '8px', padding: '12px', gap: '8px'}}>
+              <BookOpen size={16} /> <span>AIDE — Guide du jeu</span>
             </TactileButton>
 
             {/* Modal spectateur : matches amis ou démo */}
@@ -823,7 +968,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
             const newStreak = (lastClaim === new Date(Date.now() - 86400000).toDateString()) ? Math.min(streak + 1, 6) : 0;
             const reward = DAILY_REWARDS[newStreak];
             localStorage.setItem(DAILY_KEY, JSON.stringify({ lastClaim: today, streak: newStreak }));
-            setWallet(prev => ({ ...prev, dames: (prev.dames || 0) + reward }));
+            setWallet?.(prev => ({ ...prev, dames: (prev.dames || 0) + reward }));
             alert(`+${reward} $Dames collectes !`);
           };
 
@@ -917,7 +1062,43 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
         {tab === 'atelier' && (
           /* ATELIER TAB */
           <div style={{textAlign: 'left'}}>
-            
+            <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>Chronomètre</h3>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px'}}>
+              <span style={{fontSize: '13px', color: currentTheme.text}}>Activer le chronomètre</span>
+              <button
+                onClick={() => setTimerEnabled?.(!timerEnabled)}
+                style={{
+                  width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
+                  background: timerEnabled ? currentTheme.gold : 'rgba(255,255,255,0.2)',
+                  position: 'relative', transition: 'background 0.2s'
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: 2, left: timerEnabled ? 24 : 2, width: 22, height: 22, borderRadius: '50%',
+                  background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.3)', transition: 'left 0.2s'
+                }} />
+              </button>
+            </div>
+            <div style={{marginBottom: '20px'}}>
+              <div style={{fontSize: '12px', color: currentTheme.textDim, marginBottom: '8px'}}>Temps par joueur</div>
+              <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+                {[60, 120, 180, 300, 420].map(sec => (
+                  <button
+                    key={sec}
+                    onClick={() => setTimerSeconds?.(sec)}
+                    style={{
+                      padding: '8px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                      background: timerSeconds === sec ? currentTheme.gold : 'rgba(0,0,0,0.3)',
+                      color: timerSeconds === sec ? '#2a1a08' : currentTheme.textDim,
+                      fontWeight: 'bold', fontSize: '12px'
+                    }}
+                  >
+                    {sec === 60 ? '1 min' : sec === 120 ? '2 min' : sec === 180 ? '3 min' : sec === 300 ? '5 min' : '7 min'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>Thème de la Salle</h3>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '24px'}}>
               {Object.values(THEMES).map((t: any) => (
@@ -1180,6 +1361,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
           onClose={() => setShowDepositModal(false)}
           onSuccess={(amount: number) => {
             setShowDepositModal(false);
+            setWallet?.(prev => ({ ...prev, usd: (prev.usd || 0) + amount }));
           }}
         />
       )}
@@ -1283,6 +1465,30 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
           </div>
         </div>
       )}
+
+      {/* MODAL AIDE — Guide du jeu */}
+      {showGuideAide && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)', zIndex: 125,
+          backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div style={{...s.panel, textAlign: 'left', maxWidth: '400px', maxHeight: '85vh', overflowY: 'auto', border: `1px solid ${currentTheme.gold}`}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
+              <h3 style={{margin: 0, fontFamily: currentTheme.fontMain, color: currentTheme.gold, fontSize: '18px'}}>Guide du jeu — Règles internationales (10×10)</h3>
+              <button onClick={() => setShowGuideAide(false)} style={{background: 'none', border: 'none', color: currentTheme.text, cursor: 'pointer'}}><X size={20} /></button>
+            </div>
+            <ul style={{fontSize: '13px', lineHeight: '1.6', color: currentTheme.text, paddingLeft: '20px', margin: 0}}>
+              <li style={{marginBottom: '8px'}}><strong>Pions :</strong> Déplacement 1 case en diagonale. Prise avant ET arrière.</li>
+              <li style={{marginBottom: '8px'}}><strong style={{color: currentTheme.accent}}>Quantité :</strong> La prise est obligatoire. Vous devez choisir la suite qui capture le plus de pièces.</li>
+              <li style={{marginBottom: '8px'}}><strong style={{color: currentTheme.gold}}>Dames :</strong> Traversent toute la diagonale. Prise à distance.</li>
+              <li style={{marginBottom: '8px'}}>Une dame est obtenue en atteignant la dernière rangée adverse.</li>
+            </ul>
+            <TactileButton theme={currentTheme} onClick={() => setShowGuideAide(false)} style={{width: '100%', justifyContent: 'center', marginTop: '16px'}}>Fermer</TactileButton>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1316,7 +1522,7 @@ const GameLobby = ({ onMatchFound, onCancel, theme, isConnected = false, searchF
 };
 
 // 3.5 FRIEND LOBBY - Salle par code (pas de démarrage vs IA)
-const FriendLobby = ({ onMatchFound, onCancel, theme, code: guestCode, serverCode, createRoom, joinRoom, betAmount = 0, currency = 'USD', friends = [] }: any) => {
+const FriendLobby = ({ onMatchFound, onCancel, theme, code: guestCode, serverCode, createRoom, joinRoom, betAmount = 0, currency = 'USD', friends = [], user }: any) => {
   const s = getStyles(theme);
   const isGuest = !!guestCode;
   const code = isGuest ? guestCode : serverCode;
@@ -1332,7 +1538,8 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: guestCode, serverCod
   }, [isGuest, guestCode, betAmount, betCurrency]);
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://royale-dames.vercel.app';
-  const joinUrl = code ? `${baseUrl}?room=${code}` : '';
+  const refParam = user?.username ? `&ref=${encodeURIComponent(user.username)}` : (user?.id ? `&ref=${encodeURIComponent(user.id)}` : '');
+  const joinUrl = code ? `${baseUrl}?room=${code}${refParam}` : '';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(joinUrl);
@@ -1442,7 +1649,7 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: guestCode, serverCod
 };
 
 // 4. GAME BOARD (The core)
-const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator = false, theme, skin, multiplayerBoard, multiplayerTurn, onMultiplayerMove, multiplayerMyColor, multiplayerResign, difficulty = 'medium' as AIDifficulty }: any) => {
+const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator = false, theme, skin, timerEnabled = true, initialTimerSeconds = 300, multiplayerBoard, multiplayerTurn, onMultiplayerMove, multiplayerMyColor, multiplayerResign, difficulty = 'medium' as AIDifficulty }: any) => {
   const isMultiplayer = !!(multiplayerBoard && onMultiplayerMove);
   const [board, setBoard] = useState<Board>(multiplayerBoard || INITIAL_BOARD);
   const [turn, setTurn] = useState<'red' | 'white'>(multiplayerTurn || 'red');
@@ -1459,12 +1666,13 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   const [aiThinking, setAiThinking] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+  const [showGuideAide, setShowGuideAide] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Timer
-  const [redTime, setRedTime] = useState(300);
-  const [whiteTime, setWhiteTime] = useState(300);
+  // Timer (configurable depuis Atelier)
+  const [redTime, setRedTime] = useState(initialTimerSeconds);
+  const [whiteTime, setWhiteTime] = useState(initialTimerSeconds);
   
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const [hoveredMoves, setHoveredMoves] = useState<Move[]>([]);
@@ -1477,9 +1685,9 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
     if (multiplayerTurn !== undefined) setTurn(multiplayerTurn);
   }, [multiplayerTurn]);
 
-  // Timer
+  // Timer (actif seulement si timerEnabled)
   useEffect(() => {
-    if (winner || isPaused) return;
+    if (!timerEnabled || winner || isPaused) return;
     const timer = setInterval(() => {
       if (turn === 'white') {
         setWhiteTime(t => {
@@ -1496,7 +1704,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [turn, winner, isPaused]);
+  }, [timerEnabled, turn, winner, isPaused]);
   
   // --- RULES ENGINE (Internal) ---
   
@@ -2113,24 +2321,24 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         </div>
       )}
 
-      {/* TOP PLAYER (Opponent) */}
+      {/* TOP PLAYER (Opponent) — username compact pour laisser place aux points capturés */}
       <div style={{
         width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px', 
         marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         border: turn === topColor ? `1px solid ${theme.gold}` : '1px solid transparent',
         opacity: turn === topColor ? 1 : 0.6, transition: 'all 0.3s'
       }}>
-        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-          <div style={{width: '32px', height: '32px', borderRadius: '50%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${topColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1}}>
+          <div style={{width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${topColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
             {isSpectator ? <Tv size={16} color="#333" /> : (mode === 'solo' ? <Monitor size={16} color="#333" /> : <User size={16} color="#333" />)}
           </div>
-          <div>
-            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text}}>{topName}</div>
+          <div style={{minWidth: 0, flex: 1}}>
+            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px'}} title={topName}>{topName}</div>
             {(aiThinking || (isSpectator && !winner)) && <div style={{fontSize: '10px', color: theme.gold}}>Réfléchit...</div>}
             <CapturedPieces count={topColor === 'red' ? whiteLost : redLost} color={topColor === 'red' ? 'white' : 'red'} theme={theme} />
           </div>
         </div>
-        <PlayerTimer time={topTime} theme={theme} isActive={turn === topColor} />
+        {timerEnabled ? <PlayerTimer time={topTime} theme={theme} isActive={turn === topColor} /> : <div style={{minWidth: '60px', textAlign: 'center', fontSize: '12px', color: theme.textDim}}>—:—</div>}
       </div>
 
       {/* EXIT/QUIT CONFIRMATION MODAL */}
@@ -2412,24 +2620,62 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         </div>
       </div>
 
-      {/* BOTTOM PLAYER (You) */}
+      {/* BOTTOM PLAYER (You) — username compact pour laisser place aux points capturés */}
       <div style={{
         width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px',
         marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         border: turn === bottomColor ? `1px solid ${theme.gold}` : '1px solid transparent',
         opacity: turn === bottomColor ? 1 : 0.6, transition: 'all 0.3s'
       }}>
-        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-          <div style={{width: '32px', height: '32px', borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${bottomColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1}}>
+          <div style={{width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${bottomColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
             <User size={16} color="#000" />
           </div>
-          <div>
-            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text}}>{bottomName}</div>
+          <div style={{minWidth: 0, flex: 1}}>
+            <div style={{fontSize: '12px', fontWeight: 'bold', color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px'}} title={bottomName}>{bottomName}</div>
             <CapturedPieces count={bottomColor === 'red' ? whiteLost : redLost} color={bottomColor === 'red' ? 'white' : 'red'} theme={theme} />
           </div>
         </div>
-        <PlayerTimer time={bottomTime} theme={theme} isActive={turn === bottomColor} />
+        {timerEnabled ? <PlayerTimer time={bottomTime} theme={theme} isActive={turn === bottomColor} /> : <div style={{minWidth: '60px', textAlign: 'center', fontSize: '12px', color: theme.textDim}}>—:—</div>}
       </div>
+
+      {/* Bouton Aide — Guide du jeu */}
+      <button
+        onClick={() => setShowGuideAide(true)}
+        style={{
+          width: '100%', maxWidth: '420px', marginTop: '12px', padding: '12px 16px',
+          background: theme.boardLight || 'rgba(197, 160, 89, 0.3)', color: theme.text,
+          border: `1px solid ${theme.gold}60`, borderRadius: '10px',
+          fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+          fontFamily: 'cursive'
+        }}
+      >
+        <BookOpen size={18} /> AIDE
+      </button>
+
+      {/* Modal Guide Aide (plateau) */}
+      {showGuideAide && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)', zIndex: 105,
+          backdropFilter: 'blur(5px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div style={{...s.panel, textAlign: 'left', maxWidth: '400px', border: `1px solid ${theme.gold}`}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
+              <h3 style={{margin: 0, fontFamily: theme.fontMain, color: theme.gold, fontSize: '18px'}}>Guide — Règles internationales (10×10)</h3>
+              <button onClick={() => setShowGuideAide(false)} style={{background: 'none', border: 'none', color: theme.text, cursor: 'pointer'}}><X size={20} /></button>
+            </div>
+            <ul style={{fontSize: '13px', lineHeight: '1.6', color: theme.text, paddingLeft: '20px', margin: 0}}>
+              <li style={{marginBottom: '8px'}}><strong>Pions :</strong> Déplacement 1 case en diagonale. Prise avant ET arrière.</li>
+              <li style={{marginBottom: '8px'}}><strong style={{color: theme.accent}}>Quantité :</strong> La prise est obligatoire. Vous devez choisir la suite qui capture le plus de pièces.</li>
+              <li style={{marginBottom: '8px'}}><strong style={{color: theme.gold}}>Dames :</strong> Traversent toute la diagonale. Prise à distance.</li>
+            </ul>
+            <TactileButton theme={theme} onClick={() => setShowGuideAide(false)} style={{width: '100%', justifyContent: 'center', marginTop: '16px'}}>Fermer</TactileButton>
+          </div>
+        </div>
+      )}
 
     </div>
   );
@@ -2437,7 +2683,8 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
 
 // 5. MAIN APP CONTROLLER
 const App = () => {
-  const [view, setView] = useState<'login' | 'dashboard' | 'lobby' | 'friend_lobby' | 'game'>('login');
+  const [view, setView] = useState<'splash' | 'accueil' | 'login' | 'dashboard' | 'lobby' | 'friend_lobby' | 'game'>('splash');
+  const [initialTab, setInitialTab] = useState<'play' | 'atelier' | 'bonus' | 'amis'>('play');
   const [user, setUser] = useState<any>(null);
   const [wallet, setWallet] = useState({ usd: 0, crypto: 0, dames: 500 });
   const [gameConfig, setGameConfig] = useState<any>(null);
@@ -2452,6 +2699,9 @@ const App = () => {
     { id: '2', date: 'Hier', mode: 'En ligne', result: 'lose', amount: 0.05, currency: 'ETH' },
     { id: '3', date: '12 Oct', mode: 'Solo', result: 'win', amount: 10, currency: 'USD' },
   ]);
+
+  const [timerEnabled, setTimerEnabled] = useState(true);
+  const [timerSeconds, setTimerSeconds] = useState(300);
 
   const [pendingRoomCode, setPendingRoomCode] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -2537,6 +2787,21 @@ const App = () => {
     }
   };
 
+  const goToAccueil = () => setView('accueil');
+  const goToDashboard = (tab: 'play' | 'atelier' | 'bonus' | 'amis' = 'play') => {
+    setInitialTab(tab);
+    const tg = (window as any).Telegram?.WebApp;
+    const u = tg?.initDataUnsafe?.user;
+    if (u && !user) {
+      const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Joueur';
+      handleLogin('telegram', { id: String(u.id), name, username: u.username });
+    } else if (!user) {
+      handleLogin('telegram', { id: 'guest', name: 'Joueur', username: undefined });
+    } else {
+      setView('dashboard');
+    }
+  };
+
   // Récupérer le retour Google OAuth (hash avec access_token)
   useEffect(() => {
     const hash = window.location.hash;
@@ -2555,15 +2820,16 @@ const App = () => {
     }
   }, []);
 
-  // Auto-login depuis Telegram Mini App
+  // Auto-login depuis Telegram Mini App (uniquement sur l'écran login, pas après splash/accueil)
   useEffect(() => {
+    if (view !== 'login') return;
     const tg = (window as any).Telegram?.WebApp;
     const u = tg?.initDataUnsafe?.user;
     if (u && !user) {
       const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Joueur';
       handleLogin('telegram', { id: String(u.id), name, username: u.username });
     }
-  }, []);
+  }, [view]);
 
   const handlePlay = (mode: string, bet: number, currency: string, rules: string, difficulty: AIDifficulty = 'medium') => {
     let usedCurrency = currency;
@@ -2644,11 +2910,21 @@ const App = () => {
 
   return (
     <div style={getStyles(currentTheme).container}>
+      {view === 'splash' && <SplashScreen onComplete={() => setView('accueil')} theme={currentTheme} />}
+      {view === 'accueil' && (
+        <AccueilScreen
+          onMenu={() => goToDashboard('play')}
+          onAtelier={() => goToDashboard('atelier')}
+          theme={currentTheme}
+        />
+      )}
       {view === 'login' && <LoginScreen onLogin={handleLogin} theme={currentTheme} />}
       {view === 'dashboard' && (
-        <Dashboard 
-          user={user} 
-          wallet={wallet} 
+        <Dashboard
+          initialTab={initialTab}
+          user={user}
+          wallet={wallet}
+          setWallet={setWallet}
           history={history}
           onPlay={handlePlay} 
           onSpectate={handleSpectate} 
@@ -2680,6 +2956,10 @@ const App = () => {
               setView('friend_lobby');
             }
           }}
+          timerEnabled={timerEnabled}
+          setTimerEnabled={setTimerEnabled}
+          timerSeconds={timerSeconds}
+          setTimerSeconds={setTimerSeconds}
         />
       )}
       {view === 'lobby' && (
@@ -2710,6 +2990,7 @@ const App = () => {
           betAmount={gameConfig?.bet ?? 0}
           currency={gameConfig?.currency ?? 'USD'}
           friends={friends}
+          user={user}
         />
       )}
       {view === 'game' && gameConfig && (
@@ -2724,6 +3005,8 @@ const App = () => {
           onGameOver={handleGameOver}
           theme={currentTheme}
           skin={currentSkin}
+          timerEnabled={timerEnabled}
+          initialTimerSeconds={timerSeconds}
           multiplayerBoard={multiplayer.currentGame?.board}
           multiplayerTurn={multiplayer.currentGame?.currentTurn}
           onMultiplayerMove={multiplayer.makeMove}
