@@ -530,7 +530,7 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
   const [betAmount, setBetAmount] = useState(10);
   const [rules, setRules] = useState<'standard' | 'international'>('international'); 
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
-  const [tab, setTab] = useState<'play' | 'atelier' | 'historique' | 'coffre' | 'amis'>('play');
+  const [tab, setTab] = useState<'play' | 'atelier' | 'bonus' | 'historique' | 'coffre' | 'amis'>('play');
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showTonBetting, setShowTonBetting] = useState(false);
   const [connectedWallets, setConnectedWallets] = useState<{ metamask?: string; ton?: string }>({});
@@ -633,8 +633,8 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
         <div style={{display: 'flex', gap: '6px', marginBottom: '16px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '14px'}}>
           {[
             {id: 'play', icon: <Play size={14} />, label: 'Jeu'},
+            {id: 'bonus', icon: <Crown size={14} />, label: 'Bonus'},
             {id: 'atelier', icon: <Palette size={14} />, label: 'Atelier'},
-            {id: 'amis', icon: <Users size={14} />, label: 'Amis'},
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id as any)} style={{
               flex: 1, padding: '8px', borderRadius: '10px', border: 'none',
@@ -809,6 +809,111 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
           </div>
         )}
         
+        {tab === 'bonus' && (() => {
+          const DAILY_KEY = `royale-dames-daily-${user?.id || 'anon'}`;
+          const stored = (() => { try { return JSON.parse(localStorage.getItem(DAILY_KEY) || '{}'); } catch { return {}; } })();
+          const today = new Date().toDateString();
+          const lastClaim = stored.lastClaim || '';
+          const streak = stored.streak || 0;
+          const alreadyClaimed = lastClaim === today;
+          const DAILY_REWARDS = [10, 20, 30, 50, 75, 100, 200];
+
+          const claimDaily = () => {
+            if (alreadyClaimed) return;
+            const newStreak = (lastClaim === new Date(Date.now() - 86400000).toDateString()) ? Math.min(streak + 1, 6) : 0;
+            const reward = DAILY_REWARDS[newStreak];
+            localStorage.setItem(DAILY_KEY, JSON.stringify({ lastClaim: today, streak: newStreak }));
+            setWallet(prev => ({ ...prev, dames: (prev.dames || 0) + reward }));
+            alert(`+${reward} $Dames collectes !`);
+          };
+
+          const QUESTS = [
+            { id: 'q1', title: 'Premiere victoire', desc: 'Gagne 1 partie', reward: 100, check: () => (wallet.dames || 0) > 500 },
+            { id: 'q2', title: 'Joueur assidu', desc: 'Joue 3 parties', reward: 50, check: () => false },
+            { id: 'q3', title: 'Invite un ami', desc: 'Cree une partie privee', reward: 75, check: () => false },
+            { id: 'q4', title: 'Spectateur', desc: 'Regarde une partie en direct', reward: 30, check: () => false },
+            { id: 'q5', title: 'Maitre stratege', desc: 'Bats le Bot Master', reward: 200, check: () => false },
+          ];
+
+          return (
+            <div style={{animation: 'fadeIn 0.3s'}}>
+              {/* DAILY CHECK-IN */}
+              <div style={{background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '16px', marginBottom: '16px', border: `1px solid ${currentTheme.gold}30`}}>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px'}}>
+                  <div style={{fontSize: '14px', fontWeight: '900', color: currentTheme.text, fontFamily: currentTheme.fontMain}}>Connexion Quotidienne</div>
+                  <div style={{fontSize: '10px', color: currentTheme.gold, fontWeight: 'bold'}}>Jour {Math.min(streak + 1, 7)}/7</div>
+                </div>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '14px'}}>
+                  {DAILY_REWARDS.map((reward, i) => {
+                    const isPast = i < streak || (i === streak && alreadyClaimed);
+                    const isCurrent = i === streak && !alreadyClaimed;
+                    return (
+                      <div key={i} style={{
+                        padding: '6px 2px', borderRadius: '10px', textAlign: 'center',
+                        background: isPast ? `${currentTheme.gold}30` : (isCurrent ? `${currentTheme.gold}15` : 'rgba(0,0,0,0.2)'),
+                        border: isCurrent ? `2px solid ${currentTheme.gold}` : (isPast ? `1px solid ${currentTheme.gold}40` : '1px solid rgba(255,255,255,0.05)'),
+                        opacity: isPast ? 0.6 : 1,
+                        position: 'relative'
+                      }}>
+                        <div style={{fontSize: '8px', color: currentTheme.textDim, fontWeight: 'bold', marginBottom: '2px'}}>J{i + 1}</div>
+                        <div style={{fontSize: '10px', fontWeight: '900', color: isPast ? currentTheme.textDim : currentTheme.gold}}>
+                          {isPast ? <Check size={12} /> : `+${reward}`}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <TactileButton
+                  theme={currentTheme}
+                  disabled={alreadyClaimed}
+                  onClick={claimDaily}
+                  style={{
+                    width: '100%', padding: '12px',
+                    background: alreadyClaimed ? 'rgba(255,255,255,0.05)' : `linear-gradient(135deg, ${currentTheme.gold}, ${currentTheme.accent})`,
+                    opacity: alreadyClaimed ? 0.5 : 1
+                  }}
+                >
+                  {alreadyClaimed ? 'Deja collecte aujourd\'hui' : `Collecter +${DAILY_REWARDS[Math.min(streak, 6)]} $Dames`}
+                </TactileButton>
+              </div>
+
+              {/* QUETES */}
+              <div style={{background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '16px', border: `1px solid rgba(255,255,255,0.05)`}}>
+                <div style={{fontSize: '14px', fontWeight: '900', color: currentTheme.text, fontFamily: currentTheme.fontMain, marginBottom: '12px'}}>Quetes</div>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                  {QUESTS.map(q => {
+                    const done = q.check();
+                    return (
+                      <div key={q.id} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '12px', borderRadius: '12px',
+                        background: done ? `${currentTheme.gold}10` : 'rgba(0,0,0,0.15)',
+                        border: done ? `1px solid ${currentTheme.gold}30` : '1px solid rgba(255,255,255,0.05)',
+                        opacity: done ? 0.6 : 1
+                      }}>
+                        <div style={{flex: 1}}>
+                          <div style={{fontSize: '12px', fontWeight: '700', color: currentTheme.text, marginBottom: '2px'}}>{q.title}</div>
+                          <div style={{fontSize: '10px', color: currentTheme.textDim}}>{q.desc}</div>
+                        </div>
+                        <div style={{
+                          padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '800',
+                          background: done ? currentTheme.gold : 'rgba(0,0,0,0.3)',
+                          color: done ? '#1a1a1a' : currentTheme.gold,
+                          display: 'flex', alignItems: 'center', gap: '4px',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {done ? <Check size={12} /> : <Crown size={10} />}
+                          {done ? 'Fait' : `+${q.reward}`}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {tab === 'atelier' && (
           /* ATELIER TAB */
           <div style={{textAlign: 'left'}}>
@@ -1082,69 +1187,36 @@ const Dashboard = ({ user, wallet, history, onPlay, onSpectate, onLogout, curren
       {/* WALLET CONNECT MODAL */}
       {showWalletModal && !showTonBetting && (
         <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.85)', zIndex: 115,
-          backdropFilter: 'blur(5px)',
+          backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
         }}>
-          <div style={{...s.panel, maxWidth: '360px', border: `1px solid ${currentTheme.gold}`}}>
-            <h3 style={{margin: '0 0 12px 0', fontFamily: currentTheme.fontMain, color: currentTheme.gold, fontSize: '18px'}}>Connecter un wallet</h3>
-            <p style={{color: currentTheme.textDim, marginBottom: '20px', fontSize: '13px'}}>Choisis ton wallet crypto pour jouer.</p>
-            <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
-              {(typeof window !== 'undefined' && (window as any).Telegram?.WebApp) && (
-                <button
-                  onClick={() => {
-                    const tg = (window as any).Telegram?.WebApp;
-                    if (tg?.openLink) tg.openLink('https://t.me/wallet/start');
-                    else if (tg?.openTelegramLink) tg.openTelegramLink('https://t.me/wallet/start');
-                    else window.open('https://t.me/wallet/start', '_blank');
-                    setConnectedWallets(prev => ({ ...prev, ton: 'telegram' }));
-                    setShowWalletModal(false);
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
-                    background: 'linear-gradient(90deg, #229ED9 0%, #0088cc 100%)',
-                    border: 'none', borderRadius: '12px', color: 'white',
-                    cursor: 'pointer', fontWeight: 'bold', fontSize: '14px'
-                  }}
-                >
-                  <MessageSquare size={24} />
-                  Portefeuille Telegram (TON)
-                </button>
-              )}
-              <button
-                onClick={connectMetaMask}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
-                  background: 'linear-gradient(90deg, #f6851b 0%, #e2761b 100%)',
-                  border: 'none', borderRadius: '12px', color: 'white',
-                  cursor: 'pointer', fontWeight: 'bold', fontSize: '14px'
-                }}
-              >
-                <Wallet size={24} />
-                MetaMask
-              </button>
-              <button
-                onClick={connectTON}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
-                  background: 'linear-gradient(90deg, #0098ea 0%, #0077c8 100%)',
-                  border: 'none', borderRadius: '12px', color: 'white',
-                  cursor: 'pointer', fontWeight: 'bold', fontSize: '14px'
-                }}
-              >
-                <Wallet size={24} />
-                TON Wallet (externe)
-              </button>
+          <div style={{...s.panel, maxWidth: '340px', border: `1px solid ${currentTheme.gold}`, animation: 'scaleIn 0.3s', position: 'relative'}}>
+            <button onClick={() => setShowWalletModal(false)} style={{position: 'absolute', top: '12px', right: '12px', background: 'none', border: 'none', color: currentTheme.textDim, cursor: 'pointer'}}><X size={18} /></button>
+            <div style={{width: '60px', height: '60px', margin: '0 auto 16px', borderRadius: '50%', background: 'linear-gradient(135deg, #0098ea, #0077c8)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 30px rgba(0,152,234,0.4)'}}>
+              <Wallet size={28} color="#fff" />
             </div>
-            <button onClick={() => setShowTonBetting(true)} style={{
-              marginTop: '12px', width: '100%', padding: '12px',
-              background: 'rgba(0,152,234,0.2)', border: `1px solid #0098ea`,
-              color: '#0098ea', borderRadius: '10px', cursor: 'pointer', fontWeight: 600
-            }}>
-              Paris TON
-            </button>
-            <button onClick={() => setShowWalletModal(false)} style={{...s.secondaryButton, marginTop: '16px', width: '100%'}}>Fermer</button>
+            <h3 style={{margin: '0 0 8px 0', fontFamily: currentTheme.fontMain, color: currentTheme.text, fontSize: '18px', textAlign: 'center'}}>Connecter Wallet</h3>
+            <p style={{color: currentTheme.textDim, marginBottom: '24px', fontSize: '12px', textAlign: 'center'}}>Connectez votre portefeuille TON pour les paris en crypto.</p>
+            <TactileButton
+              theme={currentTheme}
+              onClick={connectTON}
+              style={{
+                width: '100%', padding: '16px',
+                background: 'linear-gradient(135deg, #0098ea 0%, #0077c8 100%)',
+                boxShadow: '0 4px 0 #005a8a, 0 8px 20px rgba(0,152,234,0.3)',
+                color: '#fff', fontSize: '14px', gap: '10px'
+              }}
+            >
+              <Wallet size={20} />
+              {connectedWallets.ton ? 'Wallet Connecte' : 'Connecter TON Wallet'}
+            </TactileButton>
+            {connectedWallets.ton && (
+              <div style={{marginTop: '12px', padding: '10px', background: 'rgba(0,152,234,0.1)', borderRadius: '10px', textAlign: 'center', fontSize: '11px', color: '#0098ea', fontWeight: 'bold'}}>
+                Wallet connecte avec succes
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2494,18 +2566,22 @@ const App = () => {
   }, []);
 
   const handlePlay = (mode: string, bet: number, currency: string, rules: string, difficulty: AIDifficulty = 'medium') => {
-    if (currency === 'USD' && wallet.usd < bet) return alert("Fonds insuffisants");
-    if (currency === 'ETH' && wallet.crypto < bet) return alert("Fonds crypto insuffisants");
+    let usedCurrency = currency;
 
-    if (bet > 0) {
-      setWallet(prev => ({
-        ...prev,
-        usd: currency === 'USD' ? prev.usd - bet : prev.usd,
-        crypto: currency === 'ETH' ? prev.crypto - bet : prev.crypto
-      }));
+    if (currency === 'USD' && wallet.usd >= bet && bet > 0) {
+      setWallet(prev => ({ ...prev, usd: prev.usd - bet }));
+    } else if (currency === 'ETH' && wallet.crypto >= bet && bet > 0) {
+      setWallet(prev => ({ ...prev, crypto: prev.crypto - bet }));
+    } else if ((wallet.dames || 0) >= bet) {
+      usedCurrency = 'DAMES';
+      if (bet > 0) {
+        setWallet(prev => ({ ...prev, dames: (prev.dames || 0) - bet }));
+      }
+    } else {
+      return alert("Fonds insuffisants. Rechargez votre solde ou complétez des quêtes pour gagner des $Dames.");
     }
     
-    setGameConfig({ mode, bet, currency, rules, difficulty, isSpectator: false });
+    setGameConfig({ mode, bet, currency: usedCurrency, rules, difficulty, isSpectator: false });
     
     if (mode === 'multi') {
       setView('lobby');
@@ -2533,19 +2609,20 @@ const App = () => {
     }
 
     const bet = gameConfig.bet || 0;
+    const cur = gameConfig.currency;
     if (winner === 'red') {
       setWallet(prev => ({
         ...prev,
-        usd: gameConfig.currency === 'USD' ? prev.usd + bet * 2 : prev.usd,
-        crypto: gameConfig.currency === 'ETH' ? prev.crypto + bet * 2 : prev.crypto,
-        dames: (prev.dames || 0) + 50
+        usd: cur === 'USD' ? prev.usd + bet * 2 : prev.usd,
+        crypto: cur === 'ETH' ? prev.crypto + bet * 2 : prev.crypto,
+        dames: (prev.dames || 0) + (cur === 'DAMES' ? bet * 2 : 0) + 50
       }));
     } else if (winner === 'draw') {
       setWallet(prev => ({
         ...prev,
-        usd: gameConfig.currency === 'USD' ? prev.usd + bet : prev.usd,
-        crypto: gameConfig.currency === 'ETH' ? prev.crypto + bet : prev.crypto,
-        dames: (prev.dames || 0) + 10
+        usd: cur === 'USD' ? prev.usd + bet : prev.usd,
+        crypto: cur === 'ETH' ? prev.crypto + bet : prev.crypto,
+        dames: (prev.dames || 0) + (cur === 'DAMES' ? bet : 0) + 10
       }));
     }
     
