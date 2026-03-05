@@ -414,54 +414,55 @@ const SplashScreen = ({ onComplete, theme }: { onComplete: () => void; theme: an
     return () => cancelAnimationFrame(id);
   }, [onComplete]);
 
+  const splashSrc = `${String((import.meta as any).env?.BASE_URL ?? '/').replace(/\/+$/, '')}/splash.gif`;
   return (
-    <div style={{ ...s.container, ...s.main, justifyContent: 'center', background: '#0a0a0a' }}>
-      <div style={{ position: 'relative', width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ width: '100%', aspectRatio: 1, maxWidth: 280, marginBottom: 24, borderRadius: '50%', overflow: 'hidden', boxShadow: `0 0 40px ${theme.gold}40` }}>
-          {!imgError ? (
-            <img
-              src={`${String((import.meta as any).env?.BASE_URL ?? '/').replace(/\/+$/, '')}/splash.gif`}
-              alt="Dame Tabac"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              onError={() => setImgError(true)}
-            />
-          ) : null}
-          {imgError && (
-            <div style={{ width: '100%', height: '100%', background: theme.bgGradient, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Trophy size={80} color={theme.gold} />
-            </div>
-          )}
-        </div>
-        <div style={{ width: '100%', height: 8, background: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
-          <div
-            style={{
-              width: `${progress}%`,
-              height: '100%',
-              background: `linear-gradient(90deg, ${theme.goldDim}, ${theme.gold})`,
-              borderRadius: 4,
-              transition: 'width 0.15s linear',
-            }}
+    <div style={{ ...s.container, position: 'relative', background: '#000', padding: 0 }}>
+      {/* GIF plein écran (plus de cercle) */}
+      <div style={{ position: 'absolute', inset: 0 }}>
+        {!imgError ? (
+          <img
+            src={splashSrc}
+            alt="Dame Tabac"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={() => setImgError(true)}
           />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: theme.bgGradient, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Trophy size={80} color={theme.gold} />
+          </div>
+        )}
+      </div>
+      {/* Barre de chargement en bas */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px 24px 32px' }}>
+        <div style={{ width: '100%', height: 8, background: 'rgba(255,255,255,0.2)', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+          <div style={{ width: `${progress}%`, height: '100%', background: `linear-gradient(90deg, ${theme.goldDim}, ${theme.gold})`, borderRadius: 4, transition: 'width 0.15s linear' }} />
         </div>
-        <span style={{ fontSize: 12, color: theme.textDim, fontWeight: 600 }}>{Math.round(progress)}%</span>
+        <span style={{ fontSize: 14, color: theme.gold, fontWeight: 700 }}>{Math.round(progress)}%</span>
       </div>
     </div>
   );
 };
 
-// 0.5 PAGE D'ACCUEIL — Menu et Atelier (sans Google/Telegram)
+const LOGO_SRC = `${String((import.meta as any).env?.BASE_URL ?? '/').replace(/\/+$/, '')}/splash.gif`;
+
+// 0.5 PAGE D'ACCUEIL — Menu et Atelier (logo Tabac Dames)
 const AccueilScreen = ({ onMenu, onAtelier, theme }: { onMenu: () => void; onAtelier: () => void; theme: any }) => {
   const s = getStyles(theme);
+  const [logoError, setLogoError] = useState(false);
   return (
     <div style={s.main}>
       <div style={{ ...s.panel, animation: 'fadeIn 0.6s ease-out' }}>
         <div style={{
-          width: '70px', height: '70px', margin: '0 auto 16px',
-          background: `radial-gradient(circle at 30% 30%, ${theme.gold}, ${theme.goldDim})`,
-          borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 0 30px ${theme.goldDim}`
+          width: '80px', height: '80px', margin: '0 auto 16px', borderRadius: '12px', overflow: 'hidden',
+          boxShadow: `0 0 20px ${theme.goldDim}`, border: `2px solid ${theme.gold}40`
         }}>
-          <Trophy size={32} color="#2a1a08" />
+          {!logoError ? (
+            <img src={LOGO_SRC} alt="Dame Tabac" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setLogoError(true)} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', background: `radial-gradient(circle at 30% 30%, ${theme.gold}, ${theme.goldDim})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Trophy size={36} color="#2a1a08" />
+            </div>
+          )}
         </div>
         <h1 style={{ ...s.logo, fontSize: '28px', marginBottom: '6px' }}>ROYAL DAMES</h1>
         <p style={{ color: theme.textDim, marginBottom: '32px', fontSize: '12px', letterSpacing: '0.5px' }}>LE CERCLE DES STRATÈGES</p>
@@ -477,6 +478,72 @@ const AccueilScreen = ({ onMenu, onAtelier, theme }: { onMenu: () => void; onAte
 
         <div style={{ marginTop: '24px', fontSize: '10px', color: theme.textDim, opacity: 0.7 }}>
           En entrant, vous acceptez les règles du club et la politique de jeu responsable.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 0.6 PAGE ATELIER — Thèmes, pions, chrono (depuis le bouton Atelier de l'accueil)
+const AtelierScreen = ({ onMenu, onBack, theme, currentTheme, setTheme, currentSkin, setSkin, timerEnabled, setTimerEnabled, timerSeconds, setTimerSeconds }: any) => {
+  const s = getStyles(theme);
+  const [pendingChange, setPendingChange] = useState<{ type: 'theme' | 'skin', value: any } | null>(null);
+  const handleThemeClick = (t: any) => { if (t.id !== currentTheme.id) setPendingChange({ type: 'theme', value: t }); };
+  const handleSkinClick = (key: string) => { if (key !== currentSkin) setPendingChange({ type: 'skin', value: key }); };
+  return (
+    <div style={s.main}>
+      <div style={{ ...s.panel, maxWidth: '420px', textAlign: 'left' }}>
+        <h2 style={{ fontFamily: theme.fontMain, color: theme.gold, marginBottom: '16px', fontSize: '18px' }}>Atelier</h2>
+
+        <h3 style={{ fontFamily: theme.fontMain, color: theme.gold, borderBottom: `1px solid ${theme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '14px' }}>Chronomètre</h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
+          <span style={{ fontSize: '13px', color: theme.text }}>Activer</span>
+          <button onClick={() => setTimerEnabled?.(!timerEnabled)} style={{ width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', background: timerEnabled ? theme.gold : 'rgba(255,255,255,0.2)', position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 2, left: timerEnabled ? 24 : 2, width: 22, height: 22, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.3)', transition: 'left 0.2s' }} />
+          </button>
+        </div>
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ fontSize: '12px', color: theme.textDim, marginBottom: '8px' }}>Temps par joueur</div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {[60, 120, 180, 300, 420].map(sec => (
+              <button key={sec} onClick={() => setTimerSeconds?.(sec)} style={{ padding: '8px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer', background: timerSeconds === sec ? theme.gold : 'rgba(0,0,0,0.3)', color: timerSeconds === sec ? '#2a1a08' : theme.textDim, fontWeight: 'bold', fontSize: '12px' }}>
+                {sec === 60 ? '1 min' : sec === 120 ? '2 min' : sec === 180 ? '3 min' : sec === 300 ? '5 min' : '7 min'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <h3 style={{ fontFamily: theme.fontMain, color: theme.gold, borderBottom: `1px solid ${theme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '14px' }}>Thème</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px' }}>
+          {Object.values(THEMES).map((t: any) => (
+            <div key={t.id} onClick={() => handleThemeClick(t)} style={{ padding: '8px', borderRadius: '10px', background: t.id === currentTheme.id ? 'rgba(255,255,255,0.1)' : 'transparent', border: t.id === currentTheme.id ? `1px solid ${theme.gold}` : '1px solid transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: t.bgGradient, border: '2px solid rgba(255,255,255,0.2)' }} />
+              <span style={{ fontSize: '11px', color: t.id === currentTheme.id ? theme.gold : theme.textDim, fontWeight: 'bold' }}>{t.name}</span>
+            </div>
+          ))}
+        </div>
+
+        <h3 style={{ fontFamily: theme.fontMain, color: theme.gold, borderBottom: `1px solid ${theme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '14px' }}>Finition des pions</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '24px' }}>
+          {Object.entries(PIECE_SKINS).map(([key, skin]: any) => (
+            <div key={key} onClick={() => handleSkinClick(key)} style={{ padding: '10px', borderRadius: '10px', background: 'rgba(0,0,0,0.2)', border: currentSkin === key ? `1px solid ${theme.gold}` : '1px solid transparent', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: key === 'wood' ? '#8b4513' : key === 'marble' ? '#bdc3c7' : key === 'neon' ? theme.accent : '#d63031' }} />
+              <span style={{ fontSize: '12px', color: currentSkin === key ? theme.text : theme.textDim }}>{skin.name}</span>
+              {currentSkin === key && <Check size={14} color={theme.gold} style={{ marginLeft: 'auto' }} />}
+            </div>
+          ))}
+        </div>
+
+        {pendingChange && (
+          <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(197,160,89,0.1)', borderRadius: '10px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+            <button onClick={() => setPendingChange(null)} style={{ ...s.secondaryButton, margin: 0 }}>Annuler</button>
+            <button onClick={() => { if (pendingChange.type === 'theme') setTheme(pendingChange.value); else setSkin(pendingChange.value); setPendingChange(null); }} style={{ ...s.button, margin: 0, padding: '8px 16px' }}>Appliquer</button>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+          <TactileButton theme={theme} onClick={onBack} variant="secondary" style={{ width: '100%' }}>← Retour accueil</TactileButton>
+          <TactileButton theme={theme} onClick={onMenu} style={{ width: '100%' }}>Menu</TactileButton>
         </div>
       </div>
     </div>
@@ -1050,7 +1117,7 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
                   onChange={e => setRoomCodeToJoin(e.target.value.toUpperCase().trim())}
                   onKeyDown={e => e.key === 'Enter' && onJoinRoom?.(roomCodeToJoin)}
                   style={{
-                    flex: '1 1 100px', minWidth: 0, padding: '10px 12px', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}40`,
+                    flex: '1 1 80px', minWidth: 0, padding: '10px 12px', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}40`,
                     background: 'rgba(0,0,0,0.2)', color: currentTheme.text, fontSize: '14px', fontFamily: 'monospace', letterSpacing: '2px'
                   }}
                 />
@@ -1058,17 +1125,17 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
                   onClick={() => onJoinRoom?.(roomCodeToJoin)}
                   disabled={!roomCodeToJoin || roomCodeToJoin.length < 4}
                   style={{
-                    flexShrink: 0, padding: '10px 14px', borderRadius: '10px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
+                    flexShrink: 0, padding: '10px 12px', borderRadius: '10px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
                     fontWeight: 'bold', cursor: roomCodeToJoin?.length >= 4 ? 'pointer' : 'not-allowed', opacity: roomCodeToJoin?.length >= 4 ? 1 : 0.6,
-                    display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
+                    display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', fontSize: '13px'
                   }}
                 >
-                  <UserPlus size={18} style={{flexShrink: 0}} /> <span>Rejoindre</span>
+                  <UserPlus size={16} /> Rejoindre
                 </button>
               </div>
             </div>
 
-            <div style={{display: 'flex', gap: '8px', marginBottom: '20px'}}>
+            <div style={{display: 'flex', gap: '8px', marginBottom: '20px', minWidth: 0}}>
               <input
                 type="text"
                 placeholder="@username"
@@ -1076,15 +1143,15 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
                 onChange={e => setNewFriendUsername(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleAddFriend()}
                 style={{
-                  flex: 1, padding: '10px 12px', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}40`,
+                  flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}40`,
                   background: 'rgba(0,0,0,0.2)', color: currentTheme.text, fontSize: '14px'
                 }}
               />
               <button
                 onClick={handleAddFriend}
                 style={{
-                  padding: '10px 16px', borderRadius: '10px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
-                  fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                  padding: '10px 14px', borderRadius: '10px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
+                  fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0
                 }}
               >
                 <UserPlus size={18} /> Ajouter
@@ -1098,11 +1165,11 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
               ) : (
                 friends.map(f => (
                   <div key={f.id} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', gap: '8px', minWidth: 0,
                     background: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}30`
                   }}>
-                    <span style={{color: currentTheme.text, fontWeight: '600'}}>@{f.username}</span>
-                    <div style={{display: 'flex', gap: '8px'}}>
+                    <span style={{color: currentTheme.text, fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1}}>@{f.username}</span>
+                    <div style={{display: 'flex', gap: '6px', flexShrink: 0, minWidth: 0}}>
                       {(() => {
                         const onlineFriend = onlineFriends?.find((of: any) => 
                           of.username?.toLowerCase() === f.username?.toLowerCase() || of.id === f.id
@@ -1112,21 +1179,21 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
                           <button
                             onClick={() => invitePlayer?.(onlineFriend.id, betAmount, currency === 'ETH' ? 'TON' : undefined)}
                             style={{
-                              padding: '6px 12px', borderRadius: '8px', border: 'none', background: currentTheme.success, color: 'white',
-                              fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                              padding: '6px 10px', borderRadius: '8px', border: 'none', background: currentTheme.success, color: 'white',
+                              fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
                             }}
                           >
-                            <Play size={14} /> En ligne - Inviter
+                            <Play size={12} /> Inviter
                           </button>
                         ) : (
                           <button
                             onClick={() => onPlay('friend', betAmount, currency === 'USD' ? 'USD' : 'ETH', rules)}
                             style={{
-                              padding: '6px 12px', borderRadius: '8px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
-                              fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                              padding: '6px 10px', borderRadius: '8px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
+                              fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
                             }}
                           >
-                            <Play size={14} /> Inviter (lien)
+                            <Play size={12} /> Inviter
                           </button>
                         );
                       })()}
@@ -1134,7 +1201,7 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
                         onClick={() => removeFriend?.(f.id)}
                         style={{
                           padding: '6px', borderRadius: '8px', border: `1px solid ${currentTheme.textDim}60`, background: 'transparent',
-                          color: currentTheme.textDim, cursor: 'pointer'
+                          color: currentTheme.textDim, cursor: 'pointer', flexShrink: 0
                         }}
                       >
                         <X size={14} />
@@ -2118,18 +2185,17 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         </div>
       )}
 
-      {/* TOP PLAYER — nom court + place pour les pièces capturées */}
+      {/* TOP PLAYER — photo de profil uniquement + pièces capturées */}
       <div style={{
         width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px', 
         marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px',
         border: turn === topColor ? `1px solid ${theme.gold}` : '1px solid transparent',
         opacity: turn === topColor ? 1 : 0.6, transition: 'all 0.3s'
       }}>
-        <div style={{width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${topColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
-          {isSpectator ? <Tv size={16} color="#333" /> : (mode === 'solo' ? <Monitor size={16} color="#333" /> : <User size={16} color="#333" />)}
+        <div style={{width: '36px', height: '36px', flexShrink: 0, borderRadius: '50%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${topColor === 'red' ? '#c0392b' : '#ecf0f1'}`}} title={topName}>
+          {isSpectator ? <Tv size={18} color="#333" /> : (mode === 'solo' ? <Monitor size={18} color="#333" /> : <User size={18} color="#333" />)}
         </div>
-        <div style={{fontSize: '11px', fontWeight: 'bold', color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '72px', flexShrink: 0}} title={topName}>{topName}</div>
-        {(aiThinking || (isSpectator && !winner)) && <span style={{fontSize: '9px', color: theme.gold}}>...</span>}
+        {(aiThinking || (isSpectator && !winner)) && <span style={{fontSize: '10px', color: theme.gold}}>...</span>}
         <div style={{flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center'}}>
           <CapturedPieces count={topColor === 'red' ? whiteLost : redLost} color={topColor === 'red' ? 'white' : 'red'} theme={theme} />
         </div>
@@ -2415,17 +2481,16 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         </div>
       </div>
 
-      {/* BOTTOM PLAYER — nom court + place pour les pièces capturées */}
+      {/* BOTTOM PLAYER — photo de profil uniquement + pièces capturées */}
       <div style={{
         width: '100%', maxWidth: '420px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px',
         marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px',
         border: turn === bottomColor ? `1px solid ${theme.gold}` : '1px solid transparent',
         opacity: turn === bottomColor ? 1 : 0.6, transition: 'all 0.3s'
       }}>
-        <div style={{width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${bottomColor === 'red' ? '#c0392b' : '#ecf0f1'}`}}>
-          <User size={16} color="#000" />
+        <div style={{width: '36px', height: '36px', flexShrink: 0, borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${bottomColor === 'red' ? '#c0392b' : '#ecf0f1'}`}} title={bottomName}>
+          <User size={18} color="#000" />
         </div>
-        <div style={{fontSize: '11px', fontWeight: 'bold', color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '72px', flexShrink: 0}} title={bottomName}>{bottomName}</div>
         <div style={{flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center'}}>
           <CapturedPieces count={bottomColor === 'red' ? whiteLost : redLost} color={bottomColor === 'red' ? 'white' : 'red'} theme={theme} />
         </div>
@@ -2478,10 +2543,28 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
 
 // 5. MAIN APP CONTROLLER
 const App = () => {
-  const [view, setView] = useState<'splash' | 'accueil' | 'dashboard' | 'lobby' | 'friend_lobby' | 'game'>('splash');
+  const WALLET_KEY = 'royale-dames-wallet';
+  const loadWallet = () => {
+    try {
+      const s = localStorage.getItem(WALLET_KEY);
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (parsed && typeof parsed.usd === 'number' && typeof parsed.dames === 'number') return parsed;
+      }
+    } catch (_) {}
+    return { usd: 0, crypto: 0, dames: 500 };
+  };
+  const [view, setView] = useState<'splash' | 'accueil' | 'atelier' | 'dashboard' | 'lobby' | 'friend_lobby' | 'game'>('splash');
   const [initialTab, setInitialTab] = useState<'play' | 'bonus' | 'amis'>('play');
   const [user, setUser] = useState<any>(null);
-  const [wallet, setWallet] = useState({ usd: 0, crypto: 0, dames: 500 });
+  const [wallet, setWalletState] = useState(loadWallet);
+  const setWallet = (updater: React.SetStateAction<{ usd: number; crypto: number; dames: number }>) => {
+    setWalletState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try { localStorage.setItem(WALLET_KEY, JSON.stringify(next)); } catch (_) {}
+      return next;
+    });
+  };
   const [gameConfig, setGameConfig] = useState<any>(null);
   
   // Customization States
@@ -2700,8 +2783,23 @@ const App = () => {
       {view === 'accueil' && (
         <AccueilScreen
           onMenu={() => goToDashboard('play')}
-          onAtelier={() => goToDashboard('atelier')}
+          onAtelier={() => setView('atelier')}
           theme={currentTheme}
+        />
+      )}
+      {view === 'atelier' && (
+        <AtelierScreen
+          onMenu={() => goToDashboard('play')}
+          onBack={() => setView('accueil')}
+          theme={currentTheme}
+          currentTheme={currentTheme}
+          setTheme={setCurrentTheme}
+          currentSkin={currentSkin}
+          setSkin={setCurrentSkin}
+          timerEnabled={timerEnabled}
+          setTimerEnabled={setTimerEnabled}
+          timerSeconds={timerSeconds}
+          setTimerSeconds={setTimerSeconds}
         />
       )}
       {view === 'dashboard' && (

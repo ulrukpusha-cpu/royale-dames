@@ -12,6 +12,7 @@
     "server:dev": "npx tsx server/index.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
     "@ton/core": "^0.63.1",
     "@tonconnect/sdk": "^3.4.1",
     "@tonconnect/ui-react": "^2.4.1",
