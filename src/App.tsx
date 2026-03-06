@@ -1700,7 +1700,7 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: guestCode, serverCod
 };
 
 // 4. GAME BOARD (The core)
-const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator = false, theme, skin, timerEnabled = true, initialTimerSeconds = 300, multiplayerBoard, multiplayerTurn, onMultiplayerMove, multiplayerMyColor, multiplayerResign, difficulty = 'medium' as AIDifficulty }: any) => {
+const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator = false, theme, skin, timerEnabled = true, initialTimerSeconds = 300, multiplayerBoard, multiplayerTurn, onMultiplayerMove, multiplayerMyColor, multiplayerResign, multiplayerPlayers, difficulty = 'medium' as AIDifficulty }: any) => {
   const isMultiplayer = !!(multiplayerBoard && onMultiplayerMove);
   const [board, setBoard] = useState<Board>(multiplayerBoard || INITIAL_BOARD);
   const [turn, setTurn] = useState<'red' | 'white'>(multiplayerTurn || 'red');
@@ -2201,17 +2201,41 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
        if (validMoves.length === 0) return;
 
        setAiThinking(true);
-       const thinkTime = difficulty === 'easy' ? 600 : (difficulty === 'hard' ? 1500 : 900);
-       
+       const thinkTime = difficulty === 'easy' ? 600 : (difficulty === 'hard' ? 2000 : 900);
+       const apiBase = (() => {
+         try {
+           const u = import.meta.env.VITE_WS_URL || '';
+           return u ? new URL(u).origin : (typeof window !== 'undefined' ? window.location.origin : '');
+         } catch { return ''; }
+       })();
+
        const timer = setTimeout(() => {
-          const move = getAIMove(validMoves, difficulty);
-          if (move) executeMove(move);
-          setAiThinking(false);
+          if (difficulty === 'hard' && apiBase) {
+            fetch(`${apiBase}/api/ai/suggest`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ moves: validMoves }),
+            })
+              .then(r => r.ok ? r.json() : Promise.reject())
+              .then((data: { move?: Move }) => {
+                const move = data?.move && validMoves.some(m => m.from.r === data.move!.from.r && m.from.c === data.move!.from.c && m.to.r === data.move!.to.r && m.to.c === data.move!.to.c) ? data.move : getAIMove(validMoves, 'hard');
+                if (move) executeMove(move);
+              })
+              .catch(() => {
+                const move = getAIMove(validMoves, 'hard');
+                if (move) executeMove(move);
+              })
+              .finally(() => setAiThinking(false));
+          } else {
+            const move = getAIMove(validMoves, difficulty);
+            if (move) executeMove(move);
+            setAiThinking(false);
+          }
        }, thinkTime);
 
        return () => clearTimeout(timer);
     }
-  }, [turn, mode, winner, isSpectator, isPaused, validMoves, animatingMove]); 
+  }, [turn, mode, winner, isSpectator, isPaused, validMoves, animatingMove, difficulty]); 
   
   // Trigger Win/Loss Sound when winner state changes
   useEffect(() => {
@@ -2235,6 +2259,9 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   const bottomTime = isFlipped ? whiteTime : redTime;
   const topName = isSpectator ? 'Match en direct' : opponentName;
   const bottomName = isSpectator ? 'SPECTATEUR' : user.name;
+  // Multijoueur: players[0] = rouge, players[1] = blanc
+  const topPlayer = isMultiplayer && multiplayerPlayers?.length === 2 ? multiplayerPlayers[topColor === 'red' ? 0 : 1] : null;
+  const bottomPlayer = isMultiplayer && multiplayerPlayers?.length === 2 ? multiplayerPlayers[bottomColor === 'red' ? 0 : 1] : null;
 
   const handlePieceHover = (r: number, c: number) => {
     if (isSpectator || winner || aiThinking || isPaused) return;
@@ -2379,8 +2406,10 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         border: turn === topColor ? `1px solid ${theme.gold}` : '1px solid transparent',
         opacity: turn === topColor ? 1 : 0.6, transition: 'all 0.3s'
       }}>
-        <div style={{width: '36px', height: '36px', flexShrink: 0, borderRadius: '50%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${topColor === 'red' ? '#c0392b' : '#ecf0f1'}`}} title={topName}>
-          {isSpectator ? <Tv size={18} color="#333" /> : (mode === 'solo' ? <Monitor size={18} color="#333" /> : <User size={18} color="#333" />)}
+        <div style={{width: '36px', height: '36px', flexShrink: 0, borderRadius: '50%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${topColor === 'red' ? '#c0392b' : '#ecf0f1'}`, overflow: 'hidden'}} title={topPlayer?.username || topName}>
+          {topPlayer?.photoUrl ? (
+            <img src={topPlayer.photoUrl} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+          ) : isSpectator ? <Tv size={18} color="#333" /> : (mode === 'solo' ? <Monitor size={18} color="#333" /> : <User size={18} color="#333" />)}
         </div>
         {(aiThinking || (isSpectator && !winner)) && <span style={{fontSize: '10px', color: theme.gold}}>...</span>}
         <div style={{flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center'}}>
@@ -2455,6 +2484,9 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
                 </li>
                 <li style={{marginBottom: '8px'}}>
                     <strong style={{color: theme.gold}}>Dames Volantes :</strong> Traversent tout le plateau. Prise à distance.
+                </li>
+                <li style={{marginBottom: '8px'}}>
+                    <strong>Action push :</strong> Vous pouvez aussi glisser-déposer un pion vers une case valide (au lieu de clic case puis clic destination).
                 </li>
             </ul>
             <TactileButton theme={theme} onClick={() => setShowRules(false)} style={{width: '100%', justifyContent: 'center', marginTop: '20px'}}>Compris</TactileButton>
@@ -2577,12 +2609,42 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
             const isLastMove = lastMovedPos?.r === r && lastMovedPos?.c === c;
             const isBeingAnimated = animatingMove && animatingMove.from.r === r && animatingMove.from.c === c;
 
+            const handleDragStart = (e: React.DragEvent) => {
+              if (!canSelect || isSpectator) return;
+              e.dataTransfer.setData('application/json', JSON.stringify({ r, c }));
+              e.dataTransfer.effectAllowed = 'move';
+            };
+            const handleDrop = (e: React.DragEvent) => {
+              e.preventDefault();
+              if (animatingMove || isPaused || winner) return;
+              if (isMultiplayer && turn !== multiplayerMyColor) return;
+              try {
+                const from = JSON.parse(e.dataTransfer.getData('application/json')) as { r: number; c: number };
+                const move = validMoves.find(m => m.from.r === from.r && m.from.c === from.c && m.to.r === r && m.to.c === c);
+                if (move) {
+                  if (isMultiplayer && onMultiplayerMove) {
+                    onMultiplayerMove({ from: move.from, to: move.to, captures: move.captures });
+                    setSelected(null);
+                    playSound('move');
+                  } else {
+                    executeMove(move);
+                  }
+                }
+              } catch (_) {}
+            };
+            const handleDragOver = (e: React.DragEvent) => {
+              if (isTarget) e.preventDefault();
+              e.dataTransfer.dropEffect = isTarget ? 'move' : 'none';
+            };
+
             return (
               <div
                 key={`${r}-${c}`}
                 onClick={() => handleSquareClick(r, c)}
                 onMouseEnter={() => handlePieceHover(r, c)}
                 onMouseLeave={() => setHoveredMoves([])}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
                 style={{
                   width: '100%', height: '100%',
                   background: isDark ? 'rgba(0,0,0,0.2)' : theme.boardLight,
@@ -2615,7 +2677,10 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
                   }} />
                 )}
                 {piece && !isBeingAnimated && (
-                  <div style={{
+                  <div
+                    draggable={canSelect && !isSpectator}
+                    onDragStart={handleDragStart}
+                    style={{
                     ...getPieceStyle(piece.color, piece.isKing, isSelected),
                     animation: isSelected
                       ? 'float-piece 2s ease-in-out infinite'
@@ -2675,8 +2740,12 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
         border: turn === bottomColor ? `1px solid ${theme.gold}` : '1px solid transparent',
         opacity: turn === bottomColor ? 1 : 0.6, transition: 'all 0.3s'
       }}>
-        <div style={{width: '36px', height: '36px', flexShrink: 0, borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${bottomColor === 'red' ? '#c0392b' : '#ecf0f1'}`}} title={bottomName}>
-          <User size={18} color="#000" />
+        <div style={{width: '36px', height: '36px', flexShrink: 0, borderRadius: '50%', background: theme.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${bottomColor === 'red' ? '#c0392b' : '#ecf0f1'}`, overflow: 'hidden'}} title={bottomPlayer?.username || bottomName}>
+          {bottomPlayer?.photoUrl ? (
+            <img src={bottomPlayer.photoUrl} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+          ) : (
+            <User size={18} color="#000" />
+          )}
         </div>
         <div style={{flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center'}}>
           <CapturedPieces count={bottomColor === 'red' ? whiteLost : redLost} color={bottomColor === 'red' ? 'white' : 'red'} theme={theme} />
@@ -3103,6 +3172,7 @@ const App = () => {
           onMultiplayerMove={multiplayer.makeMove}
           multiplayerMyColor={multiplayer.currentGame?.yourColor}
           multiplayerResign={multiplayer.resign}
+          multiplayerPlayers={multiplayer.currentGame?.players}
         />
       )}
     </div>

@@ -12,6 +12,7 @@ export interface MultiplayerPlayer {
   username: string;
   socketId: string;
   rating?: number;
+  photoUrl?: string;
 }
 
 export interface MultiplayerGameRoom {

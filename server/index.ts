@@ -249,6 +249,52 @@ app.post('/api/wave/callback', async (req, res) => {
   return res.status(200).send('OK');
 });
 
+// IA Master : suggestion de coup via Groq (optionnel)
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+app.post('/api/ai/suggest', async (req, res) => {
+  const moves = req.body?.moves;
+  if (!Array.isArray(moves) || moves.length === 0) {
+    return res.status(400).json({ error: 'moves array required' });
+  }
+  if (!GROQ_API_KEY) {
+    const idx = Math.floor(Math.random() * moves.length);
+    return res.json({ move: moves[idx], source: 'fallback' });
+  }
+  const lines = moves.map((m: any, i: number) =>
+    `${i}: (${m.from?.r},${m.from?.c}) → (${m.to?.r},${m.to?.c})${(m.captures?.length) ? ` [${m.captures.length} prise(s)]` : ''}`
+  ).join('\n');
+  const prompt = `Tu es un expert aux dames internationales (10x10). Voici les coups légaux pour les Blancs, un par ligne. Réponds par UN SEUL nombre : l'index (0-based) du meilleur coup.\n\n${lines}`;
+  try {
+    const groqRes = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 10,
+        temperature: 0.2,
+      }),
+    });
+    if (!groqRes.ok) {
+      const idx = Math.floor(Math.random() * moves.length);
+      return res.json({ move: moves[idx], source: 'fallback' });
+    }
+    const data = await groqRes.json();
+    const text = (data.choices?.[0]?.message?.content ?? '').trim();
+    const num = parseInt(text.replace(/\D/g, '').slice(0, 3), 10);
+    const idx = Number.isFinite(num) && num >= 0 && num < moves.length ? num : Math.floor(Math.random() * moves.length);
+    return res.json({ move: moves[idx], source: 'groq' });
+  } catch (err) {
+    const idx = Math.floor(Math.random() * moves.length);
+    return res.json({ move: moves[idx], source: 'fallback' });
+  }
+});
+
 // Types (format Royale Dames: red/white)
 interface Player {
   id: string;
@@ -256,6 +302,7 @@ interface Player {
   username: string;
   socketId: string;
   rating: number;
+  photoUrl?: string;
 }
 
 interface GameRoom {
@@ -303,7 +350,7 @@ io.use((socket, next) => {
   }
 });
 
-function verifyTelegramInitData(initData: string): { id: string; telegramId?: number; username: string } {
+function verifyTelegramInitData(initData: string): { id: string; telegramId?: number; username: string; photoUrl?: string } {
   if (initData.startsWith('demo_')) {
     if (process.env.NODE_ENV === 'production') throw new Error('Demo auth disabled in production');
     const id = initData.replace('demo_', '');
@@ -329,7 +376,8 @@ function verifyTelegramInitData(initData: string): { id: string; telegramId?: nu
   return {
     id: `tg_${user.id}`,
     telegramId: user.id,
-    username: user.username || user.first_name || 'Joueur'
+    username: user.username || user.first_name || 'Joueur',
+    photoUrl: user.photo_url
   };
 }
 
@@ -359,9 +407,17 @@ function validateMove(board: any, move: any, player: 'red' | 'white'): boolean {
   const dr = Math.abs(to.r - from.r);
   const dc = Math.abs(to.c - from.c);
   if (dr !== dc) return false;
-  if (!piece.isKing && dr > 2) return false;
-  if (dr === 1 && (!captures || captures.length === 0)) return true;
-  if (dr === 2 && captures && captures.length >= 1) return true;
+  const numCaptures = captures?.length ?? 0;
+  // Simple move (no capture): non-king can only move 1 step
+  if (numCaptures === 0) {
+    if (!piece.isKing && dr > 1) return false;
+    if (dr === 1) return true;
+  }
+  // Capture(s): non-king must jump exactly 2 squares per capture (multi-capture allowed)
+  if (numCaptures >= 1) {
+    if (!piece.isKing && dr !== 2 * numCaptures) return false;
+    return true;
+  }
   if (piece.isKing) return true;
   return false;
 }
@@ -406,7 +462,8 @@ io.on('connection', (socket: Socket) => {
     telegramId: user.telegramId,
     username: user.username,
     socketId: socket.id,
-    rating: 1200
+    rating: 1200,
+    photoUrl: (user as any).photoUrl
   };
   connectedPlayers.set(user.id, player);
 
