@@ -1242,16 +1242,17 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
             {referralCode && (
               <div style={{marginBottom: '20px', padding: '12px', background: 'linear-gradient(135deg, rgba(197,160,89,0.15) 0%, rgba(0,0,0,0.2) 100%)', borderRadius: '10px', border: `1px solid ${currentTheme.gold}40`}}>
                 <div style={{fontSize: '11px', color: currentTheme.gold, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px'}}>🎁 Inviter des amis (parrainage)</div>
-                <p style={{color: currentTheme.textDim, fontSize: '12px', marginBottom: '10px'}}>Partage le lien à des amis qui ne connaissent pas le jeu. Quand ils ouvrent le jeu avec ton lien, tu gagnes <strong style={{color: currentTheme.gold}}>50 $DAMES</strong> et ils sont ajoutés automatiquement à ta liste d'amis.</p>
+                <p style={{color: currentTheme.textDim, fontSize: '12px', marginBottom: '10px'}}>Partage le lien à des amis qui ne connaissent pas le jeu. Quand ils cliquent, le bot Telegram s'ouvre puis le jeu (ils sont connectés). Tu gagnes <strong style={{color: currentTheme.gold}}>50 $DAMES</strong> et ils sont ajoutés à ta liste d'amis.</p>
                 <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center'}}>
                   <input
                     readOnly
-                    value={typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname || ''}?ref=${referralCode}` : `?ref=${referralCode}`}
+                    value={(() => { const bot = (import.meta as any).env?.VITE_TELEGRAM_BOT_USERNAME; return bot ? `https://t.me/${bot}?start=ref_${referralCode}` : (typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname || ''}?ref=${referralCode}` : `?ref=${referralCode}`); })()}
                     style={{flex: '1 1 120px', minWidth: 0, padding: '8px 10px', borderRadius: '8px', border: `1px solid ${currentTheme.textDim}40`, background: 'rgba(0,0,0,0.2)', color: currentTheme.text, fontSize: '12px', fontFamily: 'monospace'}}
                   />
                   <button
                     onClick={() => {
-                      const url = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname || ''}?ref=${referralCode}` : '';
+                      const bot = (import.meta as any).env?.VITE_TELEGRAM_BOT_USERNAME;
+                      const url = bot ? `https://t.me/${bot}?start=ref_${referralCode}` : (typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname || ''}?ref=${referralCode}` : '');
                       if (url && navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(() => (window as any).Telegram?.WebApp?.showAlert?.('Lien copié !'));
                       else (window as any).Telegram?.WebApp?.showAlert?.(url || '');
                     }}
@@ -1261,7 +1262,8 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
                   </button>
                   <button
                     onClick={() => {
-                      const url = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname || ''}?ref=${referralCode}` : '';
+                      const bot = (import.meta as any).env?.VITE_TELEGRAM_BOT_USERNAME;
+                      const url = bot ? `https://t.me/${bot}?start=ref_${referralCode}` : (typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname || ''}?ref=${referralCode}` : '');
                       const text = encodeURIComponent('Joue aux dames avec moi sur Royale Dames ! 🎮');
                       const tg = (window as any).Telegram?.WebApp;
                       if (tg?.switchInlineQuery) tg.switchInlineQuery?.(text + ' ' + url, ['users', 'groups', 'channels']);
@@ -1618,9 +1620,9 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: guestCode, serverCod
     }
   }, [isGuest, guestCode, betAmount, betCurrency]);
 
+  const telegramBot = (import.meta as any).env?.VITE_TELEGRAM_BOT_USERNAME;
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://royale-dames.vercel.app';
-  const refParam = user?.username ? `&ref=${encodeURIComponent(user.username)}` : (user?.id ? `&ref=${encodeURIComponent(user.id)}` : '');
-  const joinUrl = code ? `${baseUrl}?room=${code}${refParam}` : '';
+  const joinUrl = code ? (telegramBot ? `https://t.me/${telegramBot}?start=room_${code}` : `${baseUrl}?room=${code}`) : '';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(joinUrl);

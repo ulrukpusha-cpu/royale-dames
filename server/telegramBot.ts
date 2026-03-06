@@ -11,6 +11,7 @@ const WEB_APP_URL = process.env.WEB_APP_URL || 'https://royale-dames.vercel.app'
 const CHAT_IDS_FILE = join(process.cwd(), 'chat-ids.json');
 
 let bot: TelegramBot | null = null;
+let botUsername: string = '';
 let registerRoomCodeFn: ((code: string) => void) | null = null;
 
 export function registerRoomCode(fn: (code: string) => void) {
@@ -58,7 +59,12 @@ export function startTelegramBot(): boolean {
   }
   bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-  bot.onText(/\/start/, (msg) => {
+  bot.getMe().then((me) => {
+    botUsername = me.username || '';
+    if (botUsername) console.log('Bot Telegram @' + botUsername + ' (liens t.me actives)');
+  }).catch(() => {});
+
+  bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
     const chatId = msg.chat.id;
     saveChatId(chatId);
     bot!.sendMessage(
@@ -67,7 +73,7 @@ export function startTelegramBot(): boolean {
       {
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🎲 Ouvrir Royale Dames', web_app: { url: WEB_APP_URL } }],
+            [{ text: '🎲 Ouvrir Royale Dames', web_app: { url: (() => { const p = match?.[1]?.trim(); if (!p) return WEB_APP_URL; if (p.startsWith('ref_')) return WEB_APP_URL + '?ref=' + encodeURIComponent(p.slice(4)); if (p.startsWith('room_')) return WEB_APP_URL + '?room=' + encodeURIComponent(p.slice(5)); return WEB_APP_URL + '?ref=' + encodeURIComponent(p); })() } }],
             [{ text: '🤝 Inviter un ami', callback_data: 'invite_friend' }]
           ]
         }
@@ -81,11 +87,11 @@ export function startTelegramBot(): boolean {
     if (query.data === 'invite_friend') {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       registerRoomCodeFn?.(code);
-      const inviteUrl = `${WEB_APP_URL}/?room=${code}`;
+      const inviteUrl = botUsername ? `https://t.me/${botUsername}?start=room_${code}` : `${WEB_APP_URL}/?room=${code}`;
       await bot!.answerCallbackQuery(query.id).catch(() => {});
       bot!.sendMessage(
         chatId,
-        `Voici ton lien de salle privée :\n${inviteUrl}\n\nEnvoie-le à ton ami, puis connectez-vous tous les deux.`
+        `Lien pour inviter un ami (ouvre le bot puis le jeu) :\n\n${inviteUrl}\n\nEnvoie ce lien. Quand il clique, le jeu s'ouvre dans Telegram, il est connecte.`
       );
     }
   });
