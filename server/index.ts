@@ -7,6 +7,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { createHmac } from 'crypto';
 import { Server, Socket } from 'socket.io';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { startTelegramBot, broadcastMatchSearch, registerRoomCode } from './telegramBot';
 
 const app = express();
@@ -15,8 +16,237 @@ const httpServer = createServer(app);
 const CLIENT_URL = process.env.CLIENT_URL || process.env.VITE_WS_CLIENT_URL || 'https://royale-dames.vercel.app';
 const PORT = process.env.PORT || 3001;
 
+// CORS pour les requêtes HTTP (Wave, healthcheck)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', CLIENT_URL);
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Parser JSON + garder le corps brut pour le webhook Wave (vérification signature)
+app.use(express.json({
+  verify: (req: express.Request, _res, buf: Buffer) => {
+    if (req.originalUrl === '/api/wave/callback') {
+      (req as any).rawBody = buf;
+    }
+  },
+}));
+
 const io = new Server(httpServer, {
   cors: { origin: CLIENT_URL, credentials: true }
+});
+
+// Client Supabase côté serveur (service role pour mettre à jour les soldes)
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let supabaseAdmin: SupabaseClient | null = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+} else {
+  console.warn('Supabase (service role) non configuré : WAVE callback ne pourra pas créditer les soldes.');
+}
+
+// Healthcheck simple
+app.get('/', (_req, res) => {
+  res.send('Royale Dames server OK');
+});
+
+// ====== WAVE CHECKOUT BACKEND (Fiat XOF) ======
+const WAVE_API_KEY = process.env.WAVE_API_KEY;
+const WAVE_API_BASE = process.env.WAVE_API_BASE || 'https://api.wave.com/v1';
+const WAVE_CALLBACK_URL = process.env.WAVE_CALLBACK_URL;
+
+app.post('/api/wave/checkout', async (req, res) => {
+  try {
+    const { amount, phone, external_id } = req.body || {};
+    const numericAmount = Number(amount);
+
+    if (!numericAmount || numericAmount <= 0) {
+      return res.status(400).json({ error: 'Montant invalide' });
+    }
+    if (!phone || typeof phone !== 'string') {
+      return res.status(400).json({ error: 'Numéro de téléphone requis' });
+    }
+    if (!WAVE_API_KEY) {
+      console.warn('WAVE_API_KEY manquant - le backend Wave n’est pas configuré');
+      return res.json({
+        redirectUrl: null,
+        simulated: true,
+      });
+    }
+
+    const externalId = typeof external_id === 'string' && external_id.trim() ? external_id.trim() : null;
+    if (!externalId) {
+      return res.status(400).json({ error: 'Identifiant utilisateur (external_id) requis pour le callback.' });
+    }
+
+    const amountCents = Math.round(numericAmount * 100);
+    const payload: any = {
+      amount: {
+        currency: 'XOF',
+        value: amountCents,
+      },
+      customer: {
+        phone_number: phone,
+      },
+      description: 'Depot Royale Dames',
+      client_reference_id: externalId,
+    };
+    if (WAVE_CALLBACK_URL) {
+      payload.callback_url = WAVE_CALLBACK_URL;
+    }
+
+    const resp = await fetch(`${WAVE_API_BASE}/checkout/sessions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${WAVE_API_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await resp.json().catch(() => ({}));
+
+    if (!resp.ok) {
+      console.error('Erreur Wave API', data);
+      return res.status(500).json({ error: 'Wave API error', details: data });
+    }
+
+    const redirectUrl =
+      (data as any).checkout_url ||
+      (data as any).redirect_url ||
+      (data as any).payment_url ||
+      null;
+
+    return res.json({ redirectUrl });
+  } catch (e) {
+    console.error('Erreur backend Wave', e);
+    return res.status(500).json({ error: 'Erreur serveur Wave' });
+  }
+});
+
+// ====== WAVE CALLBACK (webhook) – crédit du solde après paiement confirmé ======
+const WAVE_WEBHOOK_SECRET = process.env.WAVE_WEBHOOK_SECRET;
+
+function verifyWaveSignature(rawBody: Buffer, signatureHeader: string | undefined): boolean {
+  if (!WAVE_WEBHOOK_SECRET || !signatureHeader) return false;
+  try {
+    const expected = createHmac('sha256', WAVE_WEBHOOK_SECRET).update(rawBody).digest('hex');
+    const received = (signatureHeader.replace(/^sha256=/, '') || signatureHeader).trim();
+    return expected === received || createHmac('sha256', WAVE_WEBHOOK_SECRET).update(rawBody.toString('utf8')).digest('hex') === received;
+  } catch {
+    return false;
+  }
+}
+
+app.post('/api/wave/callback', async (req, res) => {
+  const rawBody = (req as any).rawBody as Buffer | undefined;
+  const signature = req.headers['x-wave-signature'] || req.headers['x-webhook-signature'] || req.headers['wave-signature'];
+
+  if (!rawBody || !rawBody.length) {
+    return res.status(400).send('Body manquant');
+  }
+
+  if (WAVE_WEBHOOK_SECRET && !verifyWaveSignature(rawBody, typeof signature === 'string' ? signature : signature?.[0])) {
+    console.error('Wave callback: signature invalide');
+    return res.status(401).send('Signature invalide');
+  }
+
+  let body: any;
+  try {
+    body = typeof req.body === 'object' && req.body !== null ? req.body : JSON.parse(rawBody.toString('utf8'));
+  } catch {
+    return res.status(400).send('JSON invalide');
+  }
+
+  const eventType = body.event_type || body.type || body.status;
+  const status = (body.status || body.event_type || '').toLowerCase();
+  const paid = status === 'completed' || status === 'success' || status === 'paid' || eventType === 'checkout.session.completed' || body.success === true;
+
+  if (!paid) {
+    return res.status(200).send('OK');
+  }
+
+  const externalId = body.client_reference_id || body.external_id || body.customer_reference;
+  const amountCents = Number(body.amount?.value ?? body.amount_cents ?? body.amount ?? 0);
+  const paymentId = body.id || body.payment_id || body.checkout_id || body.session_id;
+
+  if (!externalId || !amountCents || amountCents <= 0) {
+    console.error('Wave callback: external_id ou montant manquant', { externalId, amountCents });
+    return res.status(400).json({ error: 'client_reference_id ou montant manquant' });
+  }
+
+  if (!supabaseAdmin) {
+    console.error('Wave callback: Supabase non configuré');
+    return res.status(503).json({ error: 'Service indisponible' });
+  }
+
+  const { data: existingTx } = await supabaseAdmin
+    .from('transactions')
+    .select('id')
+    .contains('metadata', { wave_payment_id: String(paymentId) })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingTx) {
+    return res.status(200).send('OK');
+  }
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, fiat_balance_cents')
+    .eq('external_id', externalId)
+    .single();
+
+  if (profileError || !profile) {
+    const { data: inserted } = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        external_id: externalId,
+        provider: 'telegram',
+        fiat_balance_cents: amountCents,
+        fiat_currency: 'XOF',
+      })
+      .select('id')
+      .single();
+    if (inserted?.id) {
+      await supabaseAdmin.from('transactions').insert({
+        profile_id: inserted.id,
+        type: 'fiat_deposit',
+        amount_fiat_cents: amountCents,
+        metadata: { wave_payment_id: paymentId, source: 'wave_callback' },
+      });
+      return res.status(200).send('OK');
+    }
+    console.error('Wave callback: profil introuvable et création échouée', externalId, profileError);
+    return res.status(400).json({ error: 'Profil introuvable' });
+  }
+
+  const newBalance = Number(profile.fiat_balance_cents || 0) + amountCents;
+
+  const { error: updateError } = await supabaseAdmin
+    .from('profiles')
+    .update({ fiat_balance_cents: newBalance })
+    .eq('id', profile.id);
+
+  if (updateError) {
+    console.error('Wave callback: erreur mise à jour solde', updateError);
+    return res.status(500).json({ error: 'Erreur mise à jour solde' });
+  }
+
+  await supabaseAdmin.from('transactions').insert({
+    profile_id: profile.id,
+    type: 'fiat_deposit',
+    amount_fiat_cents: amountCents,
+    metadata: { wave_payment_id: paymentId, source: 'wave_callback' },
+  });
+
+  return res.status(200).send('OK');
 });
 
 // Types (format Royale Dames: red/white)

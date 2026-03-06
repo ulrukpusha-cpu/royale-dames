@@ -443,7 +443,7 @@ const SplashScreen = ({ onComplete, theme }: { onComplete: () => void; theme: an
   );
 };
 
-const LOGO_SRC = `${String((import.meta as any).env?.BASE_URL ?? '/').replace(/\/+$/, '')}/splash.gif`;
+const LOGO_SRC = `${String((import.meta as any).env?.BASE_URL ?? '/').replace(/\/+$/, '')}/logo.png`;
 
 // 0.5 PAGE D'ACCUEIL — Menu et Atelier (logo Tabac Dames)
 const AccueilScreen = ({ onMenu, onAtelier, theme }: { onMenu: () => void; onAtelier: () => void; theme: any }) => {
@@ -488,6 +488,8 @@ const AccueilScreen = ({ onMenu, onAtelier, theme }: { onMenu: () => void; onAte
 const AtelierScreen = ({ onMenu, onBack, theme, currentTheme, setTheme, currentSkin, setSkin, timerEnabled, setTimerEnabled, timerSeconds, setTimerSeconds }: any) => {
   const s = getStyles(theme);
   const [pendingChange, setPendingChange] = useState<{ type: 'theme' | 'skin', value: any } | null>(null);
+  const effectiveTheme = pendingChange?.type === 'theme' ? pendingChange.value : currentTheme;
+  const effectiveSkin = pendingChange?.type === 'skin' ? pendingChange.value : currentSkin;
   const handleThemeClick = (t: any) => { if (t.id !== currentTheme.id) setPendingChange({ type: 'theme', value: t }); };
   const handleSkinClick = (key: string) => { if (key !== currentSkin) setPendingChange({ type: 'skin', value: key }); };
   return (
@@ -515,23 +517,56 @@ const AtelierScreen = ({ onMenu, onBack, theme, currentTheme, setTheme, currentS
 
         <h3 style={{ fontFamily: theme.fontMain, color: theme.gold, borderBottom: `1px solid ${theme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '14px' }}>Thème</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px' }}>
-          {Object.values(THEMES).map((t: any) => (
-            <div key={t.id} onClick={() => handleThemeClick(t)} style={{ padding: '8px', borderRadius: '10px', background: t.id === currentTheme.id ? 'rgba(255,255,255,0.1)' : 'transparent', border: t.id === currentTheme.id ? `1px solid ${theme.gold}` : '1px solid transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: t.bgGradient, border: '2px solid rgba(255,255,255,0.2)' }} />
-              <span style={{ fontSize: '11px', color: t.id === currentTheme.id ? theme.gold : theme.textDim, fontWeight: 'bold' }}>{t.name}</span>
-            </div>
-          ))}
+          {Object.values(THEMES).map((t: any) => {
+            const isSelected = t.id === effectiveTheme.id;
+            return (
+              <div
+                key={t.id}
+                onClick={() => handleThemeClick(t)}
+                style={{
+                  padding: '8px',
+                  borderRadius: '10px',
+                  background: isSelected ? 'rgba(255,255,255,0.1)' : 'transparent',
+                  border: isSelected ? `1px solid ${theme.gold}` : '1px solid transparent',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: t.bgGradient, border: '2px solid rgba(255,255,255,0.2)' }} />
+                <span style={{ fontSize: '11px', color: isSelected ? theme.gold : theme.textDim, fontWeight: 'bold' }}>{t.name}</span>
+              </div>
+            );
+          })}
         </div>
 
         <h3 style={{ fontFamily: theme.fontMain, color: theme.gold, borderBottom: `1px solid ${theme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '14px' }}>Finition des pions</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '24px' }}>
-          {Object.entries(PIECE_SKINS).map(([key, skin]: any) => (
-            <div key={key} onClick={() => handleSkinClick(key)} style={{ padding: '10px', borderRadius: '10px', background: 'rgba(0,0,0,0.2)', border: currentSkin === key ? `1px solid ${theme.gold}` : '1px solid transparent', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-              <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: key === 'wood' ? '#8b4513' : key === 'marble' ? '#bdc3c7' : key === 'neon' ? theme.accent : '#d63031' }} />
-              <span style={{ fontSize: '12px', color: currentSkin === key ? theme.text : theme.textDim }}>{skin.name}</span>
-              {currentSkin === key && <Check size={14} color={theme.gold} style={{ marginLeft: 'auto' }} />}
-            </div>
-          ))}
+          {Object.entries(PIECE_SKINS).map(([key, skin]: any) => {
+            const isSelected = effectiveSkin === key;
+            return (
+              <div
+                key={key}
+                onClick={() => handleSkinClick(key)}
+                style={{
+                  padding: '10px',
+                  borderRadius: '10px',
+                  background: 'rgba(0,0,0,0.2)',
+                  border: isSelected ? `1px solid ${theme.gold}` : '1px solid transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  cursor: 'pointer'
+                }}
+              >
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: key === 'wood' ? '#8b4513' : key === 'marble' ? '#bdc3c7' : key === 'neon' ? theme.accent : '#d63031' }} />
+                <span style={{ fontSize: '12px', color: isSelected ? theme.text : theme.textDim }}>{skin.name}</span>
+                {isSelected && <Check size={14} color={theme.gold} style={{ marginLeft: 'auto' }} />}
+              </div>
+            );
+          })}
         </div>
 
         {pendingChange && (
@@ -551,23 +586,55 @@ const AtelierScreen = ({ onMenu, onBack, theme, currentTheme, setTheme, currentS
 };
 
 // 1. MAIN MENU / DASHBOARD
-// --- DEPOSIT MODAL (MOBILE MONEY) ---
-const DepositModal = ({ theme, onClose, onSuccess }: any) => {
+// --- DEPOSIT MODAL (MOBILE MONEY - WAVE) ---
+const DepositModal = ({ theme, onClose, onSuccess, user }: any) => {
   const s = getStyles(theme);
   const [amount, setAmount] = useState(10);
-  const [provider, setProvider] = useState<string | null>(null);
+  const [provider, setProvider] = useState<string | null>('wave');
   const [phone, setPhone] = useState('');
   const [step, setStep] = useState(1);
+  const WAVE_CHECKOUT_URL = (import.meta as any).env?.VITE_WAVE_CHECKOUT_URL as string | undefined;
+  const externalId = user?.id;
   const PROVIDERS = [
-    { id: 'om', name: 'Orange Money', color: '#ff7900', textColor: '#fff' },
-    { id: 'mtn', name: 'MTN MoMo', color: '#ffcc00', textColor: '#000' }
+    { id: 'wave', name: 'Wave', color: '#1b84f2', textColor: '#fff' }
   ];
-  const handleDeposit = () => { setStep(3); setTimeout(() => { onSuccess(amount); }, 2000); };
+  const handleDeposit = async () => {
+    setStep(3);
+    try {
+      if (WAVE_CHECKOUT_URL) {
+        const resp = await fetch(WAVE_CHECKOUT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, phone, external_id: externalId }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          const errMsg = data?.error || 'Erreur serveur';
+          throw new Error(errMsg);
+        }
+        const isRealWave = data.redirectUrl != null && !data.simulated;
+        if (data.redirectUrl) {
+          window.open(data.redirectUrl, '_blank');
+        }
+        if (data.simulated) {
+          setTimeout(() => { onSuccess(amount); }, 2000);
+        } else {
+          (window as any).Telegram?.WebApp?.showAlert?.('Paiement initié. Votre solde sera crédité après confirmation par Wave.');
+          setTimeout(() => onClose(), 2500);
+        }
+        return;
+      }
+      setTimeout(() => { onSuccess(amount); }, 2000);
+    } catch (e) {
+      console.error(e);
+      (window as any).Telegram?.WebApp?.showAlert?.(e instanceof Error ? e.message : 'Erreur lors du paiement Wave. Réessayez.');
+    }
+  };
   return (
     <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)', padding: '20px'}}>
       <div style={{...s.panel, maxWidth: '360px', position: 'relative', animation: 'scaleIn 0.3s'}}>
         <button onClick={onClose} style={{position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: theme.textDim, cursor: 'pointer'}}><X size={20} /></button>
-        <h2 style={{color: theme.text, fontSize: '18px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}><Smartphone size={20} color={theme.gold} /> Mobile Money</h2>
+        <h2 style={{color: theme.text, fontSize: '18px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}><Smartphone size={20} color={theme.gold} /> Wave Mobile Money</h2>
         {step === 1 && (
           <>
             <div style={{marginBottom: '20px'}}>
@@ -669,6 +736,8 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
   }, [tonAddress]);
 
   const s = getStyles(currentTheme);
+  const avatarUrl = (user && (user as any).photoUrl) as string | undefined;
+  const shortTonAddress = tonAddress ? `${tonAddress.slice(0, 6)}...${tonAddress.slice(-4)}` : null;
 
   const handleThemeClick = (t: any) => {
     if (t.id === currentTheme.id) return;
@@ -702,8 +771,12 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
         {/* TOP BAR */}
         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', paddingBottom: '8px', borderBottom: `1px solid ${currentTheme.textDim}20`}}>
           <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-            <div style={{width: '42px', height: '42px', borderRadius: '50%', background: `linear-gradient(135deg, ${currentTheme.gold}, ${currentTheme.accent})`, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(255,255,255,0.2)', boxShadow: `0 0 15px ${currentTheme.gold}40`}}>
-              <User color="#fff" size={20} />
+            <div style={{width: '42px', height: '42px', borderRadius: '50%', overflow: 'hidden', background: `linear-gradient(135deg, ${currentTheme.gold}, ${currentTheme.accent})`, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(255,255,255,0.2)', boxShadow: `0 0 15px ${currentTheme.gold}40`}}>
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={user.name} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+              ) : (
+                <User color="#fff" size={20} />
+              )}
             </div>
             <div style={{textAlign: 'left'}}>
               <div style={{fontWeight: '900', fontSize: '15px', color: currentTheme.text}}>{user.name}</div>
@@ -761,13 +834,32 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
                     <Crown size={20} /> {wallet.crypto?.toLocaleString() ?? 0} TON
                   </div>
                   <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px'}}>
-                    <TactileButton theme={currentTheme} onClick={() => { setShowWalletModal(true); }} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px', background: `linear-gradient(135deg, ${currentTheme.success || '#27ae60'} 0%, ${(currentTheme.success || '#27ae60')}dd 100%)`, boxShadow: '0 4px 0 rgba(0,0,0,0.2)'}}>
+                    <TactileButton
+                      theme={currentTheme}
+                      onClick={() => {
+                        if (connectedWallets.ton) {
+                          setShowTonBetting(true);
+                          setShowWalletModal(true);
+                        } else {
+                          setShowWalletModal(true);
+                        }
+                      }}
+                      style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px', background: `linear-gradient(135deg, ${currentTheme.success || '#27ae60'} 0%, ${(currentTheme.success || '#27ae60')}dd 100%)`, boxShadow: '0 4px 0 rgba(0,0,0,0.2)'}}
+                    >
                       <Plus size={16} /> <span>RECHARGER</span>
                     </TactileButton>
                     <TactileButton variant="secondary" theme={currentTheme} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px'}}>
                       <ArrowUpRight size={16} /> <span>RETRAIT</span>
                     </TactileButton>
-                    <TactileButton variant="secondary" theme={currentTheme} onClick={() => setShowWalletModal(true)} style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px'}}>
+                    <TactileButton
+                      variant="secondary"
+                      theme={currentTheme}
+                      onClick={() => {
+                        setShowTonBetting(false);
+                        setShowWalletModal(true);
+                      }}
+                      style={{flexDirection: 'column', gap: '6px', padding: '12px 4px', fontSize: '9px', height: 'auto', minHeight: '60px'}}
+                    >
                       <Wallet size={16} /> <span>WALLET</span>
                     </TactileButton>
                   </div>
@@ -1245,6 +1337,7 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
       {showDepositModal && (
         <DepositModal
           theme={currentTheme}
+          user={user}
           onClose={() => setShowDepositModal(false)}
           onSuccess={(amount: number) => {
             setShowDepositModal(false);
@@ -1263,28 +1356,74 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
         }}>
           <div style={{...s.panel, maxWidth: '340px', border: `1px solid ${currentTheme.gold}`, animation: 'scaleIn 0.3s', position: 'relative'}}>
             <button onClick={() => setShowWalletModal(false)} style={{position: 'absolute', top: '12px', right: '12px', background: 'none', border: 'none', color: currentTheme.textDim, cursor: 'pointer'}}><X size={18} /></button>
-            <div style={{width: '60px', height: '60px', margin: '0 auto 16px', borderRadius: '50%', background: 'linear-gradient(135deg, #0098ea, #0077c8)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 30px rgba(0,152,234,0.4)'}}>
-              <Wallet size={28} color="#fff" />
-            </div>
-            <h3 style={{margin: '0 0 8px 0', fontFamily: currentTheme.fontMain, color: currentTheme.text, fontSize: '18px', textAlign: 'center'}}>Connecter Wallet</h3>
-            <p style={{color: currentTheme.textDim, marginBottom: '24px', fontSize: '12px', textAlign: 'center'}}>Connectez votre portefeuille TON pour les paris en crypto.</p>
-            <TactileButton
-              theme={currentTheme}
-              onClick={connectTON}
-              style={{
-                width: '100%', padding: '16px',
-                background: 'linear-gradient(135deg, #0098ea 0%, #0077c8 100%)',
-                boxShadow: '0 4px 0 #005a8a, 0 8px 20px rgba(0,152,234,0.3)',
-                color: '#fff', fontSize: '14px', gap: '10px'
-              }}
-            >
-              <Wallet size={20} />
-              {connectedWallets.ton ? 'Wallet Connecte' : 'Connecter TON Wallet'}
-            </TactileButton>
-            {connectedWallets.ton && (
-              <div style={{marginTop: '12px', padding: '10px', background: 'rgba(0,152,234,0.1)', borderRadius: '10px', textAlign: 'center', fontSize: '11px', color: '#0098ea', fontWeight: 'bold'}}>
-                Wallet connecte avec succes
-              </div>
+
+            {connectedWallets.ton ? (
+              <>
+                <div style={{width: '64px', height: '64px', margin: '0 auto 16px', borderRadius: '50%', overflow: 'hidden', background: 'linear-gradient(135deg, #0098ea, #0077c8)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 30px rgba(0,152,234,0.4)'}}>
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={user?.name || 'Profil'} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                  ) : (
+                    <User size={28} color="#fff" />
+                  )}
+                </div>
+                <h3 style={{margin: '0 0 8px 0', fontFamily: currentTheme.fontMain, color: currentTheme.text, fontSize: '18px', textAlign: 'center'}}>Profil crypto</h3>
+                <p style={{color: currentTheme.textDim, marginBottom: '16px', fontSize: '12px', textAlign: 'center'}}>
+                  Wallet TON connecté pour les paris et rechargements.
+                </p>
+                <div style={{marginBottom: '12px', padding: '10px', borderRadius: '10px', background: 'rgba(0,152,234,0.08)', fontSize: '12px', color: currentTheme.text}}>
+                  <div style={{fontWeight: 'bold', marginBottom: 4}}>Adresse TON</div>
+                  <div style={{fontFamily: 'monospace', fontSize: '11px', opacity: 0.9}}>
+                    {shortTonAddress || 'Adresse non disponible'}
+                  </div>
+                </div>
+                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '11px', marginBottom: '16px'}}>
+                  <div style={{padding: '8px', borderRadius: '8px', background: 'rgba(0,0,0,0.3)'}}>
+                    <div style={{color: currentTheme.textDim, marginBottom: 4}}>Solde TON</div>
+                    <div style={{fontWeight: 'bold'}}>{wallet.crypto?.toLocaleString() ?? 0} TON</div>
+                  </div>
+                  <div style={{padding: '8px', borderRadius: '8px', background: 'rgba(0,0,0,0.3)'}}>
+                    <div style={{color: currentTheme.textDim, marginBottom: 4}}>$Dames</div>
+                    <div style={{fontWeight: 'bold'}}>{wallet.dames?.toLocaleString() ?? 0} $Dames</div>
+                  </div>
+                  <div style={{padding: '8px', borderRadius: '8px', background: 'rgba(0,0,0,0.3)'}}>
+                    <div style={{color: currentTheme.textDim, marginBottom: 4}}>Amis ajoutés</div>
+                    <div style={{fontWeight: 'bold'}}>{friends?.length ?? 0}</div>
+                  </div>
+                </div>
+                <TactileButton
+                  theme={currentTheme}
+                  onClick={() => { setShowWalletModal(false); }}
+                  style={{width: '100%', padding: '12px'}}
+                >
+                  Fermer
+                </TactileButton>
+              </>
+            ) : (
+              <>
+                <div style={{width: '60px', height: '60px', margin: '0 auto 16px', borderRadius: '50%', background: 'linear-gradient(135deg, #0098ea, #0077c8)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 30px rgba(0,152,234,0.4)'}}>
+                  <Wallet size={28} color="#fff" />
+                </div>
+                <h3 style={{margin: '0 0 8px 0', fontFamily: currentTheme.fontMain, color: currentTheme.text, fontSize: '18px', textAlign: 'center'}}>Connecter Wallet</h3>
+                <p style={{color: currentTheme.textDim, marginBottom: '24px', fontSize: '12px', textAlign: 'center'}}>Connectez votre portefeuille TON pour les paris en crypto.</p>
+                <TactileButton
+                  theme={currentTheme}
+                  onClick={connectTON}
+                  style={{
+                    width: '100%', padding: '16px',
+                    background: 'linear-gradient(135deg, #0098ea 0%, #0077c8 100%)',
+                    boxShadow: '0 4px 0 #005a8a, 0 8px 20px rgba(0,152,234,0.3)',
+                    color: '#fff', fontSize: '14px', gap: '10px'
+                  }}
+                >
+                  <Wallet size={20} />
+                  {connectedWallets.ton ? 'Wallet Connecte' : 'Connecter TON Wallet'}
+                </TactileButton>
+                {connectedWallets.ton && (
+                  <div style={{marginTop: '12px', padding: '10px', background: 'rgba(0,152,234,0.1)', borderRadius: '10px', textAlign: 'center', fontSize: '11px', color: '#0098ea', fontWeight: 'bold'}}>
+                    Wallet connecte avec succes
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -2654,7 +2793,7 @@ const App = () => {
     }
   }, []);
 
-  const handleLogin = (provider: string, userData?: { id: string; name: string; username?: string }) => {
+  const handleLogin = (provider: string, userData?: { id: string; name: string; username?: string; photoUrl?: string }) => {
     const u = userData || { id: '123', name: 'Player One' };
     setUser({ ...u, provider });
     if (pendingRoomCode) {
@@ -2672,7 +2811,7 @@ const App = () => {
     const u = tg?.initDataUnsafe?.user;
     if (u && !user) {
       const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Joueur';
-      handleLogin('telegram', { id: String(u.id), name, username: u.username });
+      handleLogin('telegram', { id: String(u.id), name, username: u.username, photoUrl: u.photo_url });
     } else if (!user) {
       handleLogin('telegram', { id: 'guest', name: 'Joueur', username: undefined });
     } else {
@@ -2690,7 +2829,7 @@ const App = () => {
         fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${token}` } })
           .then(r => r.json())
           .then(profile => {
-            handleLogin('google', { id: profile.id, name: profile.name || profile.email });
+            handleLogin('google', { id: profile.id, name: profile.name || profile.email, photoUrl: (profile as any).picture });
             window.history.replaceState(null, '', window.location.pathname + window.location.search);
           })
           .catch(() => {});
