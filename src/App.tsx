@@ -1591,17 +1591,25 @@ const FriendLobby = ({ onMatchFound, onCancel, theme, code: guestCode, serverCod
   };
 
   const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
+    try {
+      const tg = (window as any).Telegram?.WebApp;
+      const text = encodeURIComponent(`Rejoins-moi pour une partie de dames ! Code : ${code}\n${joinUrl}`);
+      const url = `https://t.me/share/url?url=${encodeURIComponent(joinUrl)}&text=${text}`;
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(url);
+        return;
+      }
+      if ((navigator as any).share) {
+        await (navigator as any).share({
           title: 'Royale Dames - Duel',
           text: `Rejoins-moi pour une partie ! Code : ${code}\n${joinUrl}`,
           url: joinUrl
         });
-      } catch (err) {
-        console.log('Error sharing', err);
+        return;
       }
-    } else {
+      handleCopy();
+    } catch (err) {
+      console.log('Error sharing', err);
       handleCopy();
     }
   };
@@ -2745,6 +2753,7 @@ const App = () => {
     });
   };
   const [gameConfig, setGameConfig] = useState<any>(null);
+  const [pendingAutoMatch, setPendingAutoMatch] = useState<{ bet: number; currency: 'USD' | 'ETH' } | null>(null);
   
   // Customization States
   const [currentTheme, setCurrentTheme] = useState(THEMES.tabac);
@@ -2823,6 +2832,22 @@ const App = () => {
     }
   });
 
+  // Lecture des paramètres d'URL (ouverture depuis le bot Telegram pour une partie en ligne)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      if (params.get('mode') === 'online') {
+        const bet = parseInt(params.get('bet') || '0', 10) || 0;
+        const rawCurrency = (params.get('currency') || 'USD').toUpperCase();
+        const currency: 'USD' | 'ETH' = rawCurrency === 'TON' ? 'ETH' : 'USD';
+        setPendingAutoMatch({ bet, currency });
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Plein écran dans Telegram Web App
   useEffect(() => {
     const tg = (window as any).Telegram?.WebApp;
@@ -2839,6 +2864,10 @@ const App = () => {
     if (pendingRoomCode) {
       setGameConfig({ mode: 'friend', bet: 0, currency: 'USD', rules: 'international', difficulty: 'medium', isSpectator: false });
       setView('friend_lobby');
+    } else if (pendingAutoMatch) {
+      setView('dashboard');
+      handlePlay('multi', pendingAutoMatch.bet, pendingAutoMatch.currency, 'international');
+      setPendingAutoMatch(null);
     } else {
       setView('dashboard');
     }

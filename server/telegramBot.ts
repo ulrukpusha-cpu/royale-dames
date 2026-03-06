@@ -115,9 +115,17 @@ export function broadcastMatchSearch(
     `Un joueur cherche un adversaire • Mise : *${mise}*\n\n` +
     `Rejoins vite pour ne pas le rater ! 👇`;
 
+  const params = new URLSearchParams({
+    mode: 'online',
+    bet: String(betAmount || 0),
+    currency: betCurrency || 'USD',
+  });
+
+  const joinUrl = `${WEB_APP_URL}?${params.toString()}`;
+
   const keyboard = {
     inline_keyboard: [
-      [{ text: '🎲 Rejoindre la partie', web_app: { url: WEB_APP_URL } }]
+      [{ text: '🎲 Rejoindre la partie', web_app: { url: joinUrl } }]
     ]
   };
 
