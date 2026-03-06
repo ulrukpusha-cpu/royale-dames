@@ -24,18 +24,9 @@ export default defineConfig(({ mode }) => {
     build: {
       target: 'esnext',
       minify: 'esbuild',
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('react-dom') || id.includes('react/')) return 'vendor-react';
-              if (id.includes('lucide-react')) return 'vendor-icons';
-              if (id.includes('socket.io-client')) return 'vendor-socket';
-              return 'vendor';
-            }
-          },
-        },
-      },
+      chunkSizeWarningLimit: 800,
+      // Pas de manualChunks : le split provoquait "Cannot access 'U1' before initialization"
+      // dans le bundle TON/tonconnect et écran noir au chargement.
     },
   };
 });
