@@ -694,7 +694,7 @@ const DepositModal = ({ theme, onClose, onSuccess, user }: any) => {
   );
 };
 
-const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin, friends = [], addFriend, removeFriend, onlineFriends = [], invitePlayer, isConnectedMultiplayer = false, spectatableGames = [], requestSpectatableGames, spectateGame, onSpectateFriendMatch, onSpectateDemo, onJoinRoom, timerEnabled, setTimerEnabled, timerSeconds, setTimerSeconds }: any) => {
+const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPlay, onSpectate, onLogout, currentTheme, setTheme, currentSkin, setSkin, friends = [], addFriend, removeFriend, onlineFriends = [], invitePlayer, isConnectedMultiplayer = false, spectatableGames = [], requestSpectatableGames, spectateGame, onSpectateFriendMatch, onSpectateDemo, onJoinRoom, timerEnabled, setTimerEnabled, timerSeconds, setTimerSeconds, referralCode = '' }: any) => {
   const [tonConnectUI] = useTonConnectUI();
   const tonAddress = useTonAddress();
   const [currency, setCurrency] = useState<'USD' | 'ETH'>('USD');
@@ -1237,6 +1237,44 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
           <div style={{textAlign: 'left'}}>
             <h3 style={{fontFamily: currentTheme.fontMain, color: currentTheme.gold, borderBottom: `1px solid ${currentTheme.textDim}`, paddingBottom: '6px', marginBottom: '12px', fontSize: '16px'}}>👥 Mes amis</h3>
             <p style={{color: currentTheme.textDim, fontSize: '12px', marginBottom: '16px'}}>Ajoute des amis par leur @username pour les inviter à jouer.</p>
+
+            {/* Inviter amis (parrainage) — partager le jeu, gagner $DAMES, invité ajouté en ami */}
+            {referralCode && (
+              <div style={{marginBottom: '20px', padding: '12px', background: 'linear-gradient(135deg, rgba(197,160,89,0.15) 0%, rgba(0,0,0,0.2) 100%)', borderRadius: '10px', border: `1px solid ${currentTheme.gold}40`}}>
+                <div style={{fontSize: '11px', color: currentTheme.gold, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px'}}>🎁 Inviter des amis (parrainage)</div>
+                <p style={{color: currentTheme.textDim, fontSize: '12px', marginBottom: '10px'}}>Partage le lien à des amis qui ne connaissent pas le jeu. Quand ils ouvrent le jeu avec ton lien, tu gagnes <strong style={{color: currentTheme.gold}}>50 $DAMES</strong> et ils sont ajoutés automatiquement à ta liste d'amis.</p>
+                <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center'}}>
+                  <input
+                    readOnly
+                    value={typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname || ''}?ref=${referralCode}` : `?ref=${referralCode}`}
+                    style={{flex: '1 1 120px', minWidth: 0, padding: '8px 10px', borderRadius: '8px', border: `1px solid ${currentTheme.textDim}40`, background: 'rgba(0,0,0,0.2)', color: currentTheme.text, fontSize: '12px', fontFamily: 'monospace'}}
+                  />
+                  <button
+                    onClick={() => {
+                      const url = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname || ''}?ref=${referralCode}` : '';
+                      if (url && navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(() => (window as any).Telegram?.WebApp?.showAlert?.('Lien copié !'));
+                      else (window as any).Telegram?.WebApp?.showAlert?.(url || '');
+                    }}
+                    style={{padding: '8px 12px', borderRadius: '8px', border: 'none', background: currentTheme.gold, color: '#2a1a08', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0}}
+                  >
+                    <Copy size={14} /> Copier
+                  </button>
+                  <button
+                    onClick={() => {
+                      const url = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname || ''}?ref=${referralCode}` : '';
+                      const text = encodeURIComponent('Joue aux dames avec moi sur Royale Dames ! 🎮');
+                      const tg = (window as any).Telegram?.WebApp;
+                      if (tg?.switchInlineQuery) tg.switchInlineQuery?.(text + ' ' + url, ['users', 'groups', 'channels']);
+                      else if (navigator.share) navigator.share({ title: 'Royale Dames', text: text.replace(/%20/g, ' '), url }).catch(() => {});
+                      else if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(() => (window as any).Telegram?.WebApp?.showAlert?.('Lien copié !'));
+                    }}
+                    style={{padding: '8px 12px', borderRadius: '8px', border: `1px solid ${currentTheme.gold}`, background: 'transparent', color: currentTheme.gold, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0}}
+                  >
+                    <Share2 size={14} /> Partager
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Rejoindre une salle par code */}
             <div style={{marginBottom: '20px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: `1px solid ${currentTheme.textDim}30`, minWidth: 0, overflow: 'hidden'}}>
@@ -2848,6 +2886,13 @@ const App = () => {
 
   const FRIENDS_KEY = `royale-dames-friends-${user?.id || 'anon'}`;
   const [friends, setFriends] = useState<{ id: string; username: string; name: string }[]>([]);
+  const [referralCode, setReferralCode] = useState<string>('');
+  const apiBase = (() => {
+    try {
+      const u = import.meta.env.VITE_WS_URL || '';
+      return u ? new URL(u).origin : (typeof window !== 'undefined' ? window.location.origin : '');
+    } catch { return ''; }
+  })();
   useEffect(() => {
     if (!user?.id) return;
     try {
@@ -2859,6 +2904,76 @@ const App = () => {
     if (!user?.id) return;
     localStorage.setItem(`royale-dames-friends-${user.id}`, JSON.stringify(friends));
   }, [friends, user?.id]);
+
+  // Récupérer le code de parrainage (pour le lien "Inviter amis")
+  useEffect(() => {
+    if (!user?.id || !apiBase) return;
+    fetch(`${apiBase}/api/referral/code?userId=${encodeURIComponent(user.id)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => data?.code && setReferralCode(data.code))
+      .catch(() => {});
+  }, [user?.id, apiBase]);
+
+  // Stocker ref dans localStorage si présent dans l'URL (au cas où l'invité n'est pas encore connecté)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search || '');
+    const ref = (params.get('ref') || '').trim().toUpperCase();
+    if (ref) localStorage.setItem('royale-dames-pending-ref', ref);
+  }, []);
+
+  // Quand l'utilisateur est connecté : utiliser le code parrain s'il y en a un (invité)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user?.id || !apiBase) return;
+    const refFromUrl = (new URLSearchParams(window.location.search || '')).get('ref')?.trim().toUpperCase();
+    const refStored = localStorage.getItem('royale-dames-pending-ref')?.trim().toUpperCase();
+    const refToUse = refFromUrl || refStored;
+    if (!refToUse) return;
+    fetch(`${apiBase}/api/referral/code?userId=${encodeURIComponent(user.id)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(my => my?.code === refToUse ? null : refToUse)
+      .then(refCode => {
+        if (!refCode) return;
+        return fetch(`${apiBase}/api/referral/use`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refCode, invitedUserId: user.id, invitedUsername: user.username || user.name || user.id }),
+        });
+      })
+      .then(res => {
+        if (res?.ok) {
+          localStorage.removeItem('royale-dames-pending-ref');
+          const u = new URL(window.location.href);
+          u.searchParams.delete('ref');
+          window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+        }
+      })
+      .catch(() => {});
+  }, [user?.id, user?.username, user?.name, apiBase]);
+
+  // Récupérer parrainages en attente : crédit $DAMES + ajout automatique en amis
+  useEffect(() => {
+    if (!user?.id || !apiBase) return;
+    fetch(`${apiBase}/api/referral/pending?userId=${encodeURIComponent(user.id)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const list = data?.referrals || [];
+        if (list.length === 0) return;
+        const REWARD = 50;
+        setFriends(prev => {
+          const next = [...prev];
+          list.forEach((r: { invitedId: string; invitedUsername: string }) => {
+            const un = (r.invitedUsername || r.invitedId).trim().replace(/^@/, '');
+            if (un && un.length >= 2 && !next.some(f => f.username?.toLowerCase() === un.toLowerCase())) next.push({ id: r.invitedId, username: un, name: `@${un}` });
+          });
+          return next;
+        });
+        setWalletState(prev => ({ ...prev, dames: (prev.dames || 0) + REWARD * list.length }));
+        return fetch(`${apiBase}/api/referral/credit?userId=${encodeURIComponent(user.id)}`, { method: 'POST' }).then(() => list.length);
+      })
+      .then(n => { if (typeof n === 'number' && n > 0) (window as any).Telegram?.WebApp?.showAlert?.(`🎉 ${n} ami(s) parrainé(s) ! Tu as reçu ${n * 50} $DAMES.`); })
+      .catch(() => {});
+  }, [user?.id, apiBase]);
 
   const addFriend = (u: string) => {
     const un = u.trim().replace(/^@/, '');
@@ -3120,6 +3235,7 @@ const App = () => {
           setTimerEnabled={setTimerEnabled}
           timerSeconds={timerSeconds}
           setTimerSeconds={setTimerSeconds}
+          referralCode={referralCode}
         />
       )}
       {view === 'lobby' && (

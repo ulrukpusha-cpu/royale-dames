@@ -295,6 +295,61 @@ app.post('/api/ai/suggest', async (req, res) => {
   }
 });
 
+// ---------- Parrainage (Inviter amis) ----------
+const REFERRAL_DAMES_REWARD = 50;
+const refCodeToUserId = new Map<string, string>();
+const userIdToRefCode = new Map<string, string>();
+interface ReferralRow { referrerId: string; invitedId: string; invitedUsername: string; credited: boolean }
+const referrals: ReferralRow[] = [];
+
+function genRefCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+app.get('/api/referral/code', (req, res) => {
+  const userId = (req.query.userId as string)?.trim();
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  let code = userIdToRefCode.get(userId);
+  if (!code) {
+    code = genRefCode();
+    while (refCodeToUserId.has(code)) code = genRefCode();
+    refCodeToUserId.set(code, userId);
+    userIdToRefCode.set(userId, code);
+  }
+  return res.json({ code });
+});
+
+app.post('/api/referral/use', (req, res) => {
+  const { refCode, invitedUserId, invitedUsername } = req.body || {};
+  const code = String(refCode || '').trim().toUpperCase();
+  const invId = String(invitedUserId || '').trim();
+  const invUser = String(invitedUsername || '').trim() || invId;
+  if (!code || !invId) return res.status(400).json({ error: 'refCode and invitedUserId required' });
+  const referrerId = refCodeToUserId.get(code);
+  if (!referrerId) return res.status(404).json({ error: 'Code invalide' });
+  if (referrerId === invId) return res.status(400).json({ error: 'Tu ne peux pas utiliser ton propre lien' });
+  if (referrals.some(r => r.referrerId === referrerId && r.invitedId === invId)) return res.json({ success: true });
+  referrals.push({ referrerId, invitedId: invId, invitedUsername: invUser, credited: false });
+  return res.json({ success: true });
+});
+
+app.get('/api/referral/pending', (req, res) => {
+  const userId = (req.query.userId as string)?.trim();
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  const list = referrals.filter(r => r.referrerId === userId && !r.credited);
+  return res.json({ referrals: list.map(r => ({ invitedId: r.invitedId, invitedUsername: r.invitedUsername })) });
+});
+
+app.post('/api/referral/credit', (req, res) => {
+  const userId = (req.query.userId as string)?.trim() || (req.body?.userId as string)?.trim();
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  referrals.forEach(r => { if (r.referrerId === userId && !r.credited) r.credited = true; });
+  return res.json({ success: true });
+});
+
 // Types (format Royale Dames: red/white)
 interface Player {
   id: string;
