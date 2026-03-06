@@ -414,17 +414,20 @@ const SplashScreen = ({ onComplete, theme }: { onComplete: () => void; theme: an
     return () => cancelAnimationFrame(id);
   }, [onComplete]);
 
-  const splashSrc = `${String((import.meta as any).env?.BASE_URL ?? '/').replace(/\/+$/, '')}/splash.gif`;
+  const splashSrc = `${String((import.meta as any).env?.BASE_URL ?? '/').replace(/\/+$/, '')}/splash.webm`;
   return (
     <div style={{ ...s.container, position: 'relative', background: '#000', padding: 0 }}>
-      {/* GIF plein écran (plus de cercle) */}
+      {/* Animation plein écran (webm/gif) */}
       <div style={{ position: 'absolute', inset: 0 }}>
         {!imgError ? (
-          <img
+          <video
             src={splashSrc}
-            alt="Dame Tabac"
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            autoPlay
+            loop
+            muted
+            playsInline
             onError={() => setImgError(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
           <div style={{ width: '100%', height: '100%', background: theme.bgGradient, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -452,14 +455,16 @@ const AccueilScreen = ({ onMenu, onAtelier, theme }: { onMenu: () => void; onAte
   return (
     <div style={s.main}>
       <div style={{ ...s.panel, animation: 'fadeIn 0.6s ease-out' }}>
-        <div style={{
-          width: '80px', height: '80px', margin: '0 auto 16px', borderRadius: '12px', overflow: 'hidden',
-          boxShadow: `0 0 20px ${theme.goldDim}`, border: `2px solid ${theme.gold}40`
-        }}>
+        <div style={{ margin: '0 auto 16px', display: 'flex', justifyContent: 'center' }}>
           {!logoError ? (
-            <img src={LOGO_SRC} alt="Dame Tabac" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setLogoError(true)} />
+            <img
+              src={LOGO_SRC}
+              alt="Dame Tabac"
+              style={{ height: '72px', width: 'auto', display: 'block' }}
+              onError={() => setLogoError(true)}
+            />
           ) : (
-            <div style={{ width: '100%', height: '100%', background: `radial-gradient(circle at 30% 30%, ${theme.gold}, ${theme.goldDim})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: `radial-gradient(circle at 30% 30%, ${theme.gold}, ${theme.goldDim})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Trophy size={36} color="#2a1a08" />
             </div>
           )}
@@ -644,9 +649,29 @@ const DepositModal = ({ theme, onClose, onSuccess, user }: any) => {
                 <TactileButton variant="secondary" theme={theme} onClick={() => setAmount(amount + 5)} style={{padding: '10px', width: '40px'}}><Plus size={16} /></TactileButton>
               </div>
             </div>
-            <div style={{marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
+            <div style={{marginBottom: '20px', display: 'flex', justifyContent: 'center'}}>
               {PROVIDERS.map(p => (
-                <div key={p.id} onClick={() => setProvider(p.id)} style={{padding: '12px', borderRadius: '10px', background: provider === p.id ? p.color : 'rgba(255,255,255,0.05)', border: provider === p.id ? '2px solid #fff' : '1px solid rgba(255,255,255,0.1)', color: provider === p.id ? p.textColor : theme.textDim, fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s'}}>{p.name}</div>
+                <div
+                  key={p.id}
+                  onClick={() => setProvider(p.id)}
+                  style={{
+                    minWidth: '120px',
+                    maxWidth: '180px',
+                    width: '60%',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    background: provider === p.id ? p.color : 'rgba(255,255,255,0.05)',
+                    border: provider === p.id ? '2px solid #fff' : '1px solid rgba(255,255,255,0.1)',
+                    color: provider === p.id ? p.textColor : theme.textDim,
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {p.name}
+                </div>
               ))}
             </div>
             <TactileButton theme={theme} disabled={!provider} onClick={() => setStep(2)} style={{width: '100%'}}>CONTINUER</TactileButton>
@@ -691,6 +716,21 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
   useEffect(() => {
     setTab(initialTab);
   }, [initialTab]);
+
+  const openTelegramFriend = (username: string) => {
+    try {
+      if (!username) return;
+      const clean = username.replace(/^@/, '');
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://royale-dames.vercel.app';
+      const text = encodeURIComponent('Rejoins-moi pour une partie de dames sur ROYALE DAMES !');
+      const url = `https://t.me/${clean}?text=${text}%0A${encodeURIComponent(baseUrl)}`;
+      const tg = (window as any).Telegram?.WebApp;
+      if (tg?.openTelegramLink) tg.openTelegramLink(url);
+      else window.open(url, '_blank');
+    } catch {
+      // ignore
+    }
+  };
 
   const handleOpenSpectateModal = () => {
     setShowSpectateModal(true);
@@ -1249,7 +1289,7 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
                 <UserPlus size={18} /> Ajouter
               </button>
             </div>
-            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px'}}>
               {friends.length === 0 ? (
                 <div style={{color: currentTheme.textDim, fontSize: '13px', fontStyle: 'italic', padding: '20px', textAlign: 'center'}}>
                   Aucun ami. Ajoute un @username ci-dessus.
@@ -1279,7 +1319,7 @@ const Dashboard = ({ initialTab = 'play', user, wallet, setWallet, history, onPl
                           </button>
                         ) : (
                           <button
-                            onClick={() => onPlay('friend', betAmount, currency === 'USD' ? 'USD' : 'ETH', rules)}
+                            onClick={() => openTelegramFriend(f.username)}
                             style={{
                               padding: '6px 10px', borderRadius: '8px', border: 'none', background: currentTheme.gold, color: '#2a1a08',
                               fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
