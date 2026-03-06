@@ -133,7 +133,7 @@ const getStyles = (theme: any) => ({
     height: 'var(--tg-viewport-height, 100vh)',
     minHeight: 'var(--tg-viewport-height, 100vh)',
     width: '100vw',
-    backgroundColor: theme.bg,
+    backgroundColor: '#000',
     backgroundImage: theme.bgGradient,
     color: theme.text,
     fontFamily: theme.fontBody,
