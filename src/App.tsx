@@ -1745,7 +1745,8 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
   const [board, setBoard] = useState<Board>(multiplayerBoard || INITIAL_BOARD);
   const [turn, setTurn] = useState<'red' | 'white'>(multiplayerTurn || 'red');
   const [selected, setSelected] = useState<Position | null>(null);
-  
+  const [draggedFrom, setDraggedFrom] = useState<Position | null>(null);
+
   // validMoves is now a list of Move objects
   const [validMoves, setValidMoves] = useState<Move[]>([]);
   
@@ -2651,11 +2652,13 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
 
             const handleDragStart = (e: React.DragEvent) => {
               if (!canSelect || isSpectator) return;
+              setDraggedFrom({ r, c });
               e.dataTransfer.setData('application/json', JSON.stringify({ r, c }));
               e.dataTransfer.effectAllowed = 'move';
             };
             const handleDrop = (e: React.DragEvent) => {
               e.preventDefault();
+              setDraggedFrom(null);
               if (animatingMove || isPaused || winner) return;
               if (isMultiplayer && turn !== multiplayerMyColor) return;
               try {
@@ -2672,9 +2675,10 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
                 }
               } catch (_) {}
             };
+            const isDropTarget = !piece && draggedFrom && validMoves.some(m => m.from.r === draggedFrom.r && m.from.c === draggedFrom.c && m.to.r === r && m.to.c === c);
             const handleDragOver = (e: React.DragEvent) => {
-              if (isTarget) e.preventDefault();
-              e.dataTransfer.dropEffect = isTarget ? 'move' : 'none';
+              if (isDropTarget || isTarget) e.preventDefault();
+              e.dataTransfer.dropEffect = (isDropTarget || isTarget) ? 'move' : 'none';
             };
 
             return (
@@ -2720,6 +2724,7 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
                   <div
                     draggable={canSelect && !isSpectator}
                     onDragStart={handleDragStart}
+                    onDragEnd={() => setDraggedFrom(null)}
                     style={{
                     ...getPieceStyle(piece.color, piece.isKing, isSelected),
                     animation: isSelected
