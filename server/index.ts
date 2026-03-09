@@ -249,16 +249,16 @@ app.post('/api/wave/callback', async (req, res) => {
   return res.status(200).send('OK');
 });
 
-// IA Master : suggestion de coup via Groq (optionnel)
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+// IA Master : suggestion de coup via Kimi 2.5 (Moonshot AI)
+const KIMI_API_KEY = process.env.KIMI_API_KEY;
+const KIMI_API_URL = 'https://api.moonshot.cn/v1/chat/completions';
 
 app.post('/api/ai/suggest', async (req, res) => {
   const moves = req.body?.moves;
   if (!Array.isArray(moves) || moves.length === 0) {
     return res.status(400).json({ error: 'moves array required' });
   }
-  if (!GROQ_API_KEY) {
+  if (!KIMI_API_KEY) {
     const idx = Math.floor(Math.random() * moves.length);
     return res.json({ move: moves[idx], source: 'fallback' });
   }
@@ -267,28 +267,28 @@ app.post('/api/ai/suggest', async (req, res) => {
   ).join('\n');
   const prompt = `Tu es un expert aux dames internationales (10x10). Voici les coups légaux pour les Blancs, un par ligne. Réponds par UN SEUL nombre : l'index (0-based) du meilleur coup.\n\n${lines}`;
   try {
-    const groqRes = await fetch(GROQ_API_URL, {
+    const kimiRes = await fetch(KIMI_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Authorization': `Bearer ${KIMI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: 'kimi-k2.5',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 10,
         temperature: 0.2,
       }),
     });
-    if (!groqRes.ok) {
+    if (!kimiRes.ok) {
       const idx = Math.floor(Math.random() * moves.length);
       return res.json({ move: moves[idx], source: 'fallback' });
     }
-    const data = await groqRes.json();
+    const data = await kimiRes.json();
     const text = (data.choices?.[0]?.message?.content ?? '').trim();
     const num = parseInt(text.replace(/\D/g, '').slice(0, 3), 10);
     const idx = Number.isFinite(num) && num >= 0 && num < moves.length ? num : Math.floor(Math.random() * moves.length);
-    return res.json({ move: moves[idx], source: 'groq' });
+    return res.json({ move: moves[idx], source: 'kimi' });
   } catch (err) {
     const idx = Math.floor(Math.random() * moves.length);
     return res.json({ move: moves[idx], source: 'fallback' });

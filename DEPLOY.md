@@ -36,10 +36,10 @@ Tu peux laisser ces valeurs (elles sont aussi définies dans `vercel.json`).
 
 ### 2.3 Variables d’environnement (optionnel)
 
-Si tu utilises des variables côté build (ex. `GEMINI_API_KEY` dans `vite.config.ts`) :
+Si tu utilises des variables côté build (ex. `KIMI_API_KEY`) :
 
 - **Project** → **Settings** → **Environment Variables**
-- Ajoute `GEMINI_API_KEY` (et autres) pour les environnements **Production**, **Preview**, etc.
+- Ajoute `KIMI_API_KEY` (et autres) pour les environnements **Production**, **Preview**, etc.
 
 ### 2.4 Déploiement
 
