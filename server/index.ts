@@ -8,7 +8,13 @@ import { createServer } from 'http';
 import { createHmac } from 'crypto';
 import { Server, Socket } from 'socket.io';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { startTelegramBot, broadcastMatchSearch, registerRoomCode } from './telegramBot';
+import {
+  startTelegramBot,
+  broadcastMatchSearch,
+  registerRoomCode,
+  verifyGameLaunchToken,
+  submitTelegramGameScore,
+} from './telegramBot';
 
 const app = express();
 const httpServer = createServer(app);
@@ -54,6 +60,45 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
 // Healthcheck simple
 app.get('/', (_req, res) => {
   res.send('Royale Dames server OK');
+});
+
+// Score classement Telegram (jeu HTML5 / Web App) — après setGameScore, shareScore côté client fonctionne
+app.post('/api/telegram/game-score', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const num = Math.min(1_000_000_000, Math.max(0, Math.floor(Number(body.score))));
+    if (!Number.isFinite(num)) {
+      return res.status(400).json({ error: 'Score invalide' });
+    }
+
+    let telegramId: number | undefined;
+    const initData = typeof body.initData === 'string' ? body.initData : '';
+    if (initData) {
+      try {
+        const u = verifyTelegramInitData(initData);
+        if (u.telegramId != null) telegramId = u.telegramId;
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const { tg_launch, tg_ts, tg_sig } = body;
+    if (telegramId == null && tg_launch != null && tg_ts != null && tg_sig != null) {
+      const uid = parseInt(String(tg_launch), 10);
+      const ts = parseInt(String(tg_ts), 10);
+      if (verifyGameLaunchToken(uid, ts, String(tg_sig))) telegramId = uid;
+    }
+
+    if (telegramId == null) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
+    const ok = await submitTelegramGameScore(telegramId, num, Boolean(body.force));
+    return res.json({ ok });
+  } catch (e) {
+    console.error('game-score', e);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 // ====== WAVE CHECKOUT BACKEND (Fiat XOF) ======

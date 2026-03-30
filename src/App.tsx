@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useMultiplayer } from '@/hooks/useMultiplayer';
+import { readLaunchParams, isTelegramHtml5Game, shareTelegramGameScore } from '@/lib/telegramGameProxy';
 const TonBettingPanel = lazy(() => import('@/components/TonBettingPanel').then(m => ({ default: m.TonBettingPanel })));
 import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
 import {
@@ -2574,6 +2575,15 @@ const BoardGame = ({ mode, bet, currency, rules, onGameOver, user, isSpectator =
                  : (winner === 'red' ? `Vous avez gagné ${bet > 0 ? `${bet * 2} $Dames + ` : ''}50 $Dames !` : 'Meilleure chance la prochaine fois.')
                }
             </p>
+            {!isSpectator && winner === 'red' && isTelegramHtml5Game() && (
+              <TactileButton
+                theme={theme}
+                onClick={() => shareTelegramGameScore()}
+                style={{ marginTop: '16px', background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)', color: theme.text, border: `1px solid ${theme.gold}60` }}
+              >
+                <Share2 size={18} /> Partager mon score
+              </TactileButton>
+            )}
             <TactileButton theme={theme} onClick={() => onGameOver(winner)} style={{marginTop: '24px'}}>
                Retour Menu
             </TactileButton>
@@ -2885,9 +2895,7 @@ const App = () => {
 
   const [pendingRoomCode, setPendingRoomCode] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
-    const params = new URLSearchParams(window.location.search);
-    const room = params.get('room');
-    return room ? room.toUpperCase().trim() : null;
+    return readLaunchParams().room;
   });
   const [friendRoomCode, setFriendRoomCode] = useState<string | null>(null);
 
@@ -2921,18 +2929,17 @@ const App = () => {
       .catch(() => {});
   }, [user?.id, apiBase]);
 
-  // Stocker ref dans localStorage si présent dans l'URL (au cas où l'invité n'est pas encore connecté)
+  // Stocker ref si présent dans l'URL / fragment / initParams jeu (invité pas encore connecté)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search || '');
-    const ref = (params.get('ref') || '').trim().toUpperCase();
+    const ref = readLaunchParams().ref;
     if (ref) localStorage.setItem('royale-dames-pending-ref', ref);
   }, []);
 
   // Quand l'utilisateur est connecté : utiliser le code parrain s'il y en a un (invité)
   useEffect(() => {
     if (typeof window === 'undefined' || !user?.id || !apiBase) return;
-    const refFromUrl = (new URLSearchParams(window.location.search || '')).get('ref')?.trim().toUpperCase();
+    const refFromUrl = readLaunchParams().ref;
     const refStored = localStorage.getItem('royale-dames-pending-ref')?.trim().toUpperCase();
     const refToUse = refFromUrl || refStored;
     if (!refToUse) return;
@@ -3023,19 +3030,33 @@ const App = () => {
     }
   });
 
-  // Lecture des paramètres d'URL (ouverture depuis le bot Telegram pour une partie en ligne)
+  // Paramètres lancement (bot, Web App, message Jeu) : partie en ligne
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const params = new URLSearchParams(window.location.search || '');
-      if (params.get('mode') === 'online') {
-        const bet = parseInt(params.get('bet') || '0', 10) || 0;
-        const rawCurrency = (params.get('currency') || 'USD').toUpperCase();
-        const currency: 'USD' | 'ETH' = rawCurrency === 'TON' ? 'ETH' : 'USD';
-        setPendingAutoMatch({ bet, currency });
-      }
+      const { modeOnline, bet, currency: rawCurrency } = readLaunchParams();
+      if (!modeOnline) return;
+      const currency: 'USD' | 'ETH' = rawCurrency.toUpperCase() === 'TON' ? 'ETH' : 'USD';
+      setPendingAutoMatch({ bet, currency });
     } catch {
       // ignore
+    }
+  }, []);
+
+  // Jeton signé après clic « Play » sur un message Jeu (setGameScore côté serveur)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search || '');
+    const uid = params.get('tg_launch');
+    const ts = params.get('tg_ts');
+    const sig = params.get('tg_sig');
+    if (uid && ts && sig) {
+      sessionStorage.setItem('royale-dames-tg-launch', JSON.stringify({ tg_launch: uid, tg_ts: ts, tg_sig: sig }));
+      params.delete('tg_launch');
+      params.delete('tg_ts');
+      params.delete('tg_sig');
+      const clean = window.location.pathname + (params.toString() ? `?${params}` : '') + (window.location.hash || '');
+      window.history.replaceState(null, '', clean);
     }
   }, []);
 
@@ -3140,6 +3161,30 @@ const App = () => {
     if (gameConfig.isSpectator) {
       setView('dashboard');
       return;
+    }
+
+    if (gameConfig.mode === 'solo' && winner === 'red' && apiBase) {
+      const diff = gameConfig.difficulty || 'medium';
+      const bonus = diff === 'hard' ? 25 : diff === 'medium' ? 10 : 0;
+      const score = 100 + bonus;
+      const body: Record<string, unknown> = { score };
+      const initData = (window as unknown as { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp?.initData;
+      if (initData) body.initData = initData;
+      try {
+        const raw = sessionStorage.getItem('royale-dames-tg-launch');
+        if (raw) Object.assign(body, JSON.parse(raw));
+      } catch {
+        /* ignore */
+      }
+      fetch(`${apiBase}/api/telegram/game-score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+        .then((r) => {
+          if (r.ok) sessionStorage.removeItem('royale-dames-tg-launch');
+        })
+        .catch(() => {});
     }
 
     const bet = gameConfig.bet || 0;
